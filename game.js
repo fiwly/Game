@@ -6,7 +6,7 @@ let scene,camera,renderer,clock,hero,locked=null;
 let enemies=[],shots=[],fx=[],keys={},stick={x:0,y:0,active:false};
 let running=false,paused=false,dead=false,won=false;
 let stamina=100,combo=0,comboTimer=0,attackCD=0,heavyCD=0,dashCD=0,invuln=0;
-let relic=false,shrineUsed=false,boss=null,interactTarget=null;
+let relic=false,shrineUsed=false,boss=null,interactTarget=null,relicObject=null,chests=[];
 const state=JSON.parse(localStorage.getItem(saveKey)||'{"level":1,"shards":0,"relics":0}');
 const world={size:110};
 
@@ -66,6 +66,7 @@ function createRelic(){
  const base=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.5,.45,8),material(0x5d625b));base.position.y=.25;base.castShadow=true;g.add(base);
  const crystal=new THREE.Mesh(new THREE.OctahedronGeometry(.7,1),new THREE.MeshStandardMaterial({color:0xb7ffe9,emissive:0x3a8d79,emissiveIntensity:2,roughness:.2,metalness:.35}));crystal.position.y=1.25;crystal.castShadow=true;g.add(crystal);
  const ring=new THREE.Mesh(new THREE.TorusGeometry(1,.035,8,32),new THREE.MeshBasicMaterial({color:0xd6bd63}));ring.rotation.x=Math.PI/2;ring.position.y=.8;g.add(ring);
+ relicObject=g;
  g.userData.action=()=>{if(relic){toast("The relic is already yours");return}if(!shrineUsed){toast("The relic is sealed. Awaken the shrine first.");return}relic=true;state.relics++;state.shards+=50;save();$("objective").textContent="Clear the guardians";$("objectiveText").textContent="Defeat every guardian on the island. Then face the Warden.";burst(g.position,0xb7ffe9,28,6);toast("ANCIENT RELIC RECOVERED")};
 }
 function createChests(){
@@ -73,6 +74,7 @@ function createChests(){
   const g=new THREE.Group();g.position.set(p[0],0,p[1]);g.userData.type="chest";g.userData.open=false;add(g);
   const box=new THREE.Mesh(new THREE.BoxGeometry(1.6,.9,1.1),material(0x765536,.65,.2));box.position.y=.5;box.castShadow=true;g.add(box);
   const lid=new THREE.Mesh(new THREE.BoxGeometry(1.7,.45,1.15),material(0x9a6c3e,.6,.25));lid.position.y=1.15;lid.castShadow=true;g.add(lid);
+  chests.push(g);
   g.userData.action=()=>{if(g.userData.open){toast("Empty chest");return}g.userData.open=true;lid.rotation.x=-1.05;state.shards+=20;save();burst(g.position,0xd6bd63,14,4);toast("+20 SHARDS")}
  }
 }
@@ -114,7 +116,7 @@ function heavyAttack(){
 }
 function hit(e,dmg){
  e.hp-=dmg;burst(e.g.position,0xe6d47a,7,3);e.core.scale.setScalar(1.2);setTimeout(()=>{if(e.core)e.core.scale.setScalar(1)},100);
- if(e.hp<=0){e.dead=true;state.shards+=10;save();burst(e.g.position,0xb7ffe9,18,5);scene.remove(e.g);enemies=enemies.filter(x=>x!==e);toast("+10 SHARDS");if(enemies.length===0&&!boss&&relic)spawnBoss()}
+ if(e.hp<=0){e.dead=true;if(locked===e){locked=null;$("lock").classList.remove("locked")}state.shards+=10;save();burst(e.g.position,0xb7ffe9,18,5);scene.remove(e.g);enemies=enemies.filter(x=>x!==e);toast("+10 SHARDS");if(enemies.length===0&&!boss&&relic)spawnBoss()}
 }
 function hitBoss(dmg){
  boss.hp-=dmg;burst(boss.g.position,0xff706d,12,4);updateBoss();
@@ -176,7 +178,7 @@ function loop(){
 }
 
 function start(){
- running=true;paused=false;dead=false;won=false;relic=false;shrineUsed=false;locked=null;$("lock").classList.remove("locked");hero.hp=hero.maxHp;hero.g.position.set(0,0,18);enemies.forEach(e=>scene.remove(e.g));enemies=[];boss=null;$("boss").classList.add("hidden");createEnemyCamp();$("start").classList.add("hidden");$("lose").classList.add("hidden");$("win").classList.add("hidden");toast("EXPEDITION STARTED")
+ running=true;paused=false;dead=false;won=false;relic=false;shrineUsed=false;locked=null;$("lock").classList.remove("locked");hero.hp=hero.maxHp;chests.forEach(c=>{c.userData.open=false;const lid=c.children[1];lid.rotation.set(0,0,0)});if(relicObject)relicObject.visible=true;hero.g.position.set(0,0,18);enemies.forEach(e=>scene.remove(e.g));enemies=[];boss=null;$("boss").classList.add("hidden");createEnemyCamp();$("start").classList.add("hidden");$("lose").classList.add("hidden");$("win").classList.add("hidden");toast("EXPEDITION STARTED")
 }
 function pause(){if(!running||dead||won)return;paused=!paused;$("pauseScreen").classList.toggle("hidden",!paused)}
 function bind(){
