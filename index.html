@@ -1,104 +1,56 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-  <meta name="theme-color" content="#070a12">
-  <title>NEON QUEST 3D</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>SKYBOUND — Relic of the Lost Isle</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="game-shell">
-    <div id="game"></div>
+<div id="game-shell">
+  <div id="game"></div>
+  <div class="cinema top"></div><div class="cinema bottom"></div>
 
-    <header class="topbar">
-      <div class="brand">
-        <div class="brand-mark">NQ</div>
-        <div><strong>NEON QUEST</strong><small>3D ACTION RPG</small></div>
-      </div>
-      <div class="top-actions">
-        <div class="coin">◈ <b id="coins">0</b></div>
-        <button id="fullscreen" class="icon-btn" aria-label="Fullscreen">⛶</button>
-        <button id="pause" class="icon-btn" aria-label="Pause">Ⅱ</button>
-      </div>
-    </header>
+  <header class="hud-top">
+    <div class="brand"><span>SKYBOUND</span><small>RELIC OF THE LOST ISLE</small></div>
+    <div class="resources"><span>◆ <b id="shards">0</b></span><span>LV <b id="level">1</b></span><button id="fullscreen">⛶</button><button id="pause">Ⅱ</button></div>
+  </header>
 
-    <div id="hud">
-      <div class="player-card">
-        <div class="avatar">⚔</div>
-        <div class="player-info">
-          <div class="name-row"><b id="heroName">Knight</b><span id="level">LV 1</span></div>
-          <div class="bar hp"><i id="hpBar"></i></div>
-          <div class="bar xp"><i id="xpBar"></i></div>
-        </div>
-      </div>
-      <div class="quest-card">
-        <small>QUEST</small><b id="questTitle">The First Gate</b>
-        <span id="questText">Reach the ruins and defeat the guardians.</span>
-      </div>
-    </div>
-
-    <div id="bossbar" class="bossbar hidden">
-      <div><b id="bossName">RUIN GUARDIAN</b><span id="bossHpText">0 / 0</span></div>
-      <div class="boss-track"><i id="bossHp"></i></div>
-    </div>
-
-    <div id="toast"></div>
-
-    <div id="mobile-controls">
-      <div id="joystick" class="joystick"><div id="stick"></div></div>
-      <div class="combat-controls">
-        <button id="skill" class="action skill">✦<small>SKILL</small></button>
-        <button id="dodge" class="action dodge">◆<small>DODGE</small></button>
-        <button id="attack" class="action attack">⚔<small>ATTACK</small></button>
-      </div>
-    </div>
-
-    <div id="desktop-hint">WASD / ARROWS to move · SPACE to dodge · J / CLICK to attack · K for skill</div>
-
-    <div id="start-screen" class="overlay">
-      <div class="title-card">
-        <div class="eyebrow">A BROWSER ACTION RPG</div>
-        <h1>NEON<br><span>QUEST</span></h1>
-        <p>Explore the ruined valley. Fight corrupted creatures. Grow stronger. Defeat the Guardian.</p>
-        <div class="feature-row"><span>◆ 3D WORLD</span><span>◆ BOSS FIGHT</span><span>◆ SAVE</span></div>
-        <button id="start-game" class="primary">ENTER THE VALLEY</button>
-        <small>Best with landscape mode on iPad.</small>
-      </div>
-    </div>
-
-    <div id="pause-screen" class="overlay hidden">
-      <div class="panel">
-        <div class="eyebrow">PAUSED</div><h2>VALLEY PAUSED</h2>
-        <button id="resume" class="primary">RESUME</button>
-        <button id="open-menu">CHARACTER & SHOP</button>
-      </div>
-    </div>
-
-    <div id="menu" class="overlay hidden">
-      <div class="panel wide">
-        <button id="close-menu" class="close">×</button>
-        <div class="tabs"><button class="tab active" data-tab="character">CHARACTER</button><button class="tab" data-tab="shop">SHOP</button><button class="tab" data-tab="save">SAVE</button></div>
-        <section id="character" class="tab-page active">
-          <h2 id="menuHeroName">Knight</h2>
-          <div id="stats"></div>
-          <div id="equipment"></div>
-        </section>
-        <section id="shop" class="tab-page"><h2>TRAVELER'S SHOP</h2><div id="shop-items" class="shop-grid"></div></section>
-        <section id="save" class="tab-page"><h2>GAME DATA</h2><p>Progress is saved automatically on this device.</p><button id="reset-save" class="danger">RESET SAVE</button></section>
-      </div>
-    </div>
-
-    <div id="game-over" class="overlay hidden">
-      <div class="panel"><div class="eyebrow">THE VALLEY CLAIMED YOU</div><h2>DEFEATED</h2><p>Return to the last checkpoint and try again.</p><button id="retry" class="primary">TRY AGAIN</button></div>
-    </div>
-
-    <div id="victory" class="overlay hidden">
-      <div class="panel"><div class="eyebrow">CHAPTER COMPLETE</div><h2>GUARDIAN FALLEN</h2><p>You cleared the first chapter of Neon Quest.</p><button id="continue" class="primary">CONTINUE EXPLORING</button></div>
-    </div>
-
-    <div id="loading" class="loading"><div class="loader"></div><b>BUILDING THE VALLEY…</b></div>
+  <div class="player-hud">
+    <div class="portrait">S</div>
+    <div class="bars"><b>WANDERER</b><div class="hp"><i id="hp"></i></div><div class="stamina"><i id="stamina"></i></div></div>
   </div>
-  <script type="module" src="game.js"></script>
+  <div class="objective"><small>OBJECTIVE</small><b id="objective">Find the ancient shrine</b><span id="objectiveText">Explore the island and recover the first relic.</span></div>
+  <div id="prompt"></div>
+  <div id="boss" class="hidden"><div><b id="bossName">STONE WARDEN</b><span id="bossText"></span></div><div class="boss-track"><i id="bossHp"></i></div></div>
+
+  <div id="mobile">
+    <div id="stick-zone"><div id="stick"></div></div>
+    <div class="actions">
+      <button id="light">⚔<small>LIGHT</small></button>
+      <button id="dash">➤<small>DASH</small></button>
+      <button id="heavy">✦<small>HEAVY</small></button>
+      <button id="interact">◎<small>USE</small></button>
+    </div>
+  </div>
+  <div id="desktop-help">WASD MOVE · MOUSE / J LIGHT · K HEAVY · SPACE DASH · E INTERACT · F LOCK-ON</div>
+
+  <div id="start" class="screen">
+    <div class="hero-copy">
+      <div class="kicker">A 3D ADVENTURE FOR THE BROWSER</div>
+      <h1>SKY<br><em>BOUND</em></h1>
+      <p>A forgotten island. A sleeping guardian. One relic that can change everything.</p>
+      <button id="startBtn" class="primary">BEGIN EXPEDITION</button>
+      <div class="chips"><span>EXPLORE</span><span>COMBAT</span><span>DISCOVER</span></div>
+    </div>
+  </div>
+
+  <div id="pauseScreen" class="screen hidden"><div class="modal"><small>EXPEDITION PAUSED</small><h2>THE ISLAND WAITS</h2><button id="resume" class="primary">CONTINUE</button><button id="restart">RESTART EXPEDITION</button></div></div>
+  <div id="win" class="screen hidden"><div class="modal"><small>RELIC RECOVERED</small><h2>THE SKY REMEMBERS</h2><p>You found the ancient relic and awakened the island.</p><button id="again" class="primary">EXPLORE AGAIN</button></div></div>
+  <div id="lose" class="screen hidden"><div class="modal"><small>EXPEDITION FAILED</small><h2>THE ISLAND WINS</h2><p>Your expedition ends here.</p><button id="retry" class="primary">TRY AGAIN</button></div></div>
+
+  <div id="loading"><div class="spinner"></div><b>GENERATING THE LOST ISLE</b></div>
+</div>
+<script type="module" src="game.js"></script>
 </body>
 </html>
