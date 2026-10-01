@@ -1,467 +1,174 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
 
-/* NEON QUEST 3D
-   Original procedural 3D assets. No third-party game assets.
-   Three.js provides the WebGL renderer and scene graph. */
 const $=id=>document.getElementById(id);
-const SAVE_KEY="neonQuest3D_v1";
-const WORLD={w:92,d:62};
-const HERO={name:"Knight",maxHp:120,damage:22,speed:7,crit:.12};
-const defaults={coins:0,xp:0,level:1,damage:0,hp:0,speed:0,skill:0,chapter:1,kills:0};
-let save=loadSave();
-let scene,camera,renderer,clock,player;
-let enemies=[],projectiles=[],loot=[],effects=[],decor=[];
-let started=false,paused=false,dead=false,victory=false;
-let attackCd=0,skillCd=0,dodgeCd=0,dodgeTime=0,invuln=0,hitFlash=0;
-let questKills=0, bossSpawned=false, boss=null;
-let move={x:0,z:0},keys={};
-let joystickActive=false,joystickPointer=0,audioCtx=null;
+const saveKey="skybound_save_v1";
+let scene,camera,renderer,clock,hero,locked=null;
+let enemies=[],shots=[],fx=[],keys={},stick={x:0,y:0,active:false};
+let running=false,paused=false,dead=false,won=false;
+let stamina=100,combo=0,comboTimer=0,attackCD=0,heavyCD=0,dashCD=0,invuln=0;
+let relic=false,shrineUsed=false,boss=null,interactTarget=null;
+const state=JSON.parse(localStorage.getItem(saveKey)||'{"level":1,"shards":0,"relics":0}');
+const world={size:110};
 
-function loadSave(){
-  try{
-    const v=JSON.parse(localStorage.getItem(SAVE_KEY));
-    return v?{...defaults,...v}:structuredClone(defaults);
-  }catch{return structuredClone(defaults)}
-}
-function saveGame(){localStorage.setItem(SAVE_KEY,JSON.stringify(save));updateUI()}
-function xpNeed(){return 100+(save.level-1)*70}
-function totalStats(){
-  return {
-    maxHp:HERO.maxHp+save.hp*20+(save.level-1)*8,
-    damage:HERO.damage+save.damage*5+(save.level-1)*3,
-    speed:HERO.speed+save.speed*.35,
-    crit:HERO.crit+save.skill*.02
-  }
-}
-function updateUI(){
-  $("coins").textContent=save.coins;
-  $("level").textContent="LV "+save.level;
-  $("heroName").textContent=HERO.name;
-  $("menuHeroName").textContent=HERO.name+" • LEVEL "+save.level;
-  $("stats").innerHTML=`<div class="stat-grid">
-    <div class="stat"><small>MAX HP</small><b>${totalStats().maxHp}</b></div>
-    <div class="stat"><small>DAMAGE</small><b>${totalStats().damage}</b></div>
-    <div class="stat"><small>SPEED</small><b>${totalStats().speed.toFixed(1)}</b></div>
-  </div>`;
-  $("equipment").innerHTML=`<div class="equip">⚔ <b>Ruinblade</b><br><small>Balanced starter weapon · +${totalStats().damage} base damage</small></div>`;
-  renderShop();
-}
-function renderShop(){
-  const items=[
-    ["damage","Sharpened Edge","Damage +5",70],
-    ["hp","Guardian Plate","Max HP +20",80],
-    ["speed","Swift Boots","Move speed +0.35",90],
-    ["skill","Arc Core","Skill power +2%",120]
-  ];
-  $("shop-items").innerHTML=items.map(([k,n,d,c])=>`<div class="shop-item"><h3>${n}</h3><p>${d} · Owned ${save[k]}</p><button data-buy="${k}" data-cost="${c}">BUY · ◈${c}</button></div>`).join("");
-  document.querySelectorAll("[data-buy]").forEach(b=>b.onclick=()=>buy(b.dataset.buy,+b.dataset.cost));
-}
-function buy(k,cost){
-  if(save.coins<cost){toast("Not enough coins");return}
-  save.coins-=cost;save[k]++;saveGame();toast("Upgrade purchased");
-  sound(520,.06,"triangle");
-}
-function gainXP(amount){
-  save.xp+=amount;
-  while(save.xp>=xpNeed()){
-    save.xp-=xpNeed();save.level++;
-    if(player){player.maxHp=totalStats().maxHp;player.hp=player.maxHp}
-    toast("LEVEL UP · "+save.level);
-    sound(880,.12,"sine");
-  }
-  saveGame();
-}
-function toast(msg){
-  const el=$("toast");el.textContent=msg;el.classList.add("toast-show");
-  clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove("toast-show"),1500);
-}
-function sound(freq,dur=.08,type="sine"){
-  try{
-    audioCtx ||= new (window.AudioContext||window.webkitAudioContext)();
-    if(audioCtx.state==="suspended")audioCtx.resume();
-    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
-    o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(.035,audioCtx.currentTime);
-    g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+dur);
-    o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+dur);
-  }catch{}
-}
+function save(){localStorage.setItem(saveKey,JSON.stringify(state));$("shards").textContent=state.shards;$("level").textContent=state.level}
+function material(c,r=.8,m=0){return new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m})}
+function add(g){scene.add(g);return g}
+function mesh(geo,mat,x,y,z){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);return m}
+function dist(a,b){return a.position.distanceTo(b.position)}
+function toast(t){$("prompt").textContent=t;clearTimeout(toast.t);toast.t=setTimeout(()=>{$("prompt").textContent=""},1800)}
+function burst(p,color,n=8,power=4){for(let i=0;i<n;i++){const m=mesh(new THREE.SphereGeometry(.045+Math.random()*.07,5,5),new THREE.MeshBasicMaterial({color,transparent:true}));m.position.copy(p);fx.push({m,life:.35+Math.random()*.35,v:new THREE.Vector3((Math.random()-.5)*power,Math.random()*power,(Math.random()-.5)*power)})}}
 
 function init(){
-  scene=new THREE.Scene();
-  scene.background=new THREE.Color(0x07101c);
-  scene.fog=new THREE.FogExp2(0x07101c,.018);
-  camera=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,.1,220);
-  renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"});
-  renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));
-  renderer.setSize(innerWidth,innerHeight);
-  renderer.shadowMap.enabled=true;
-  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-  renderer.outputColorSpace=THREE.SRGBColorSpace;
-  $("game").appendChild(renderer.domElement);
-
-  const hemi=new THREE.HemisphereLight(0x9fb9ff,0x172015,1.7);scene.add(hemi);
-  const moon=new THREE.DirectionalLight(0xb9d3ff,2.3);moon.position.set(-35,55,-25);moon.castShadow=true;
-  moon.shadow.mapSize.set(1024,1024);moon.shadow.camera.left=-55;moon.shadow.camera.right=55;moon.shadow.camera.top=45;moon.shadow.camera.bottom=-45;scene.add(moon);
-  const rim=new THREE.PointLight(0x6c5cff,25,35);rim.position.set(12,7,8);scene.add(rim);
-
-  buildWorld();
-  createPlayer();
-  window.addEventListener("resize",resize);
-  bindControls();
-  updateUI();
-  $("loading").classList.add("hidden");
-  requestAnimationFrame(loop);
+ scene=new THREE.Scene();scene.background=new THREE.Color(0x8ca69b);scene.fog=new THREE.Fog(0x8ca69b,48,125);
+ camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,180);
+ renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"});
+ renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;
+ $("game").appendChild(renderer.domElement);
+ const hemi=new THREE.HemisphereLight(0xd9fff1,0x304038,2.2);add(hemi);
+ const sun=new THREE.DirectionalLight(0xfff1c5,3);sun.position.set(-35,60,25);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-60;sun.shadow.camera.right=60;sun.shadow.camera.top=60;sun.shadow.camera.bottom=-60;add(sun);
+ buildIsland();createHero();createShrine();createChests();createEnemyCamp();bind();save();$("loading").classList.add("hidden");clock=new THREE.Clock();requestAnimationFrame(loop)
 }
-function mat(color,rough=.8,metal=0){
-  return new THREE.MeshStandardMaterial({color,roughness:rough,metalness:metal});
-}
-function mesh(geo,material,x,y,z){
-  const m=new THREE.Mesh(geo,material);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);return m;
-}
-function buildWorld(){
-  const ground=mesh(new THREE.PlaneGeometry(WORLD.w,WORLD.d),mat(0x17251d,.98),0,0,0);
-  ground.rotation.x=-Math.PI/2;
-  const path=mesh(new THREE.PlaneGeometry(9,WORLD.d-8),mat(0x2a2928,1),0,.012,0);path.rotation.x=-Math.PI/2;
 
-  const water=mesh(new THREE.PlaneGeometry(19,12),new THREE.MeshStandardMaterial({color:0x123b4b,roughness:.2,metalness:.1,transparent:true,opacity:.8}),25,.02,-20);
-  water.rotation.x=-Math.PI/2;
-
-  for(let i=0;i<34;i++){
-    const x=(Math.random()-.5)*82,z=(Math.random()-.5)*52;
-    if(Math.abs(x)<7||z>20)continue;
-    const tree=makeTree(x,z);decor.push(tree);
-  }
-  for(let i=0;i<18;i++){
-    const x=-35+Math.random()*70,z=-22+Math.random()*38;
-    const crystal=makeCrystal(x,z);decor.push(crystal);
-  }
-  makeRuin(-31,-2);makeRuin(30,2);
-  makeGate(38,0);
-  for(let i=0;i<14;i++){
-    const rock=mesh(new THREE.DodecahedronGeometry(.5+Math.random()*.8,0),mat(0x35433e),-43+Math.random()*86,.35,-27+Math.random()*54);
-    rock.scale.y=.55;decor.push(rock);
-  }
+function buildIsland(){
+ const ground=mesh(new THREE.CircleGeometry(55,64),material(0x405c4e,.98),0,-.3,0);ground.receiveShadow=true;
+ for(let i=0;i<45;i++){const a=Math.random()*Math.PI*2,r=8+Math.random()*44,x=Math.cos(a)*r,z=Math.sin(a)*r; if(Math.hypot(x,z)<12)continue; makeTree(x,z)}
+ for(let i=0;i<28;i++){const x=(Math.random()-.5)*90,z=(Math.random()-.5)*90;if(Math.hypot(x,z)<15)continue;const rock=mesh(new THREE.DodecahedronGeometry(.4+Math.random()*1.1,1),material(0x53635d),x,.4,z);rock.scale.y=.5+Math.random();rock.rotation.set(Math.random(),Math.random(),Math.random())}
+ const water=mesh(new THREE.CircleGeometry(76,64),new THREE.MeshStandardMaterial({color:0x244b57,roughness:.2,metalness:.1,transparent:true,opacity:.78}),0,-1.1,0);
+ const path=mesh(new THREE.RingGeometry(7,9,48),material(0x706957),0,.01,0);
+ for(let i=0;i<12;i++){const a=i*Math.PI*2/12;const x=Math.cos(a)*10,z=Math.sin(a)*10;mesh(new THREE.CylinderGeometry(.5,.7,1.4,7),material(0x655e50),x,.7,z)}
+ const ruins=new THREE.Group();ruins.position.set(28,0,-23);add(ruins);
+ for(let i=0;i<8;i++){const p=new THREE.Mesh(new THREE.BoxGeometry(1.3,3+Math.random()*3,1.3),material(0x5e625e));p.position.set((Math.random()-.5)*10,1.5,(Math.random()-.5)*8);p.rotation.y=Math.random();p.castShadow=true;ruins.add(p)}
 }
 function makeTree(x,z){
-  const g=new THREE.Group();g.position.set(x,0,z);
-  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.25,.38,2.4,7),mat(0x3a2b22));trunk.position.y=1.2;trunk.castShadow=true;g.add(trunk);
-  const crown=new THREE.Mesh(new THREE.DodecahedronGeometry(1.6,1),mat(0x1b513e));crown.position.y=2.9;crown.castShadow=true;g.add(crown);
-  scene.add(g);return g;
+ const g=new THREE.Group();g.position.set(x,0,z);const t=new THREE.Mesh(new THREE.CylinderGeometry(.18,.3,2.6,7),material(0x4c3829));t.position.y=1.3;t.castShadow=true;g.add(t);
+ const c=new THREE.Mesh(new THREE.IcosahedronGeometry(1.35,1),material(0x244f40));c.position.y=2.9;c.castShadow=true;g.add(c);add(g)
 }
-function makeCrystal(x,z){
-  const g=new THREE.Group();g.position.set(x,0,z);
-  const m=new THREE.Mesh(new THREE.OctahedronGeometry(.55,0),mat(0x3e9ed0,.35,.4));m.position.y=.65;m.scale.y=1.7;m.castShadow=true;g.add(m);
-  scene.add(g);return g;
+
+function createHero(){
+ const g=new THREE.Group();g.position.set(0,0,18);add(g);
+ const body=new THREE.Mesh(new THREE.CapsuleGeometry(.55,1.1,5,10),material(0x355b62,.5,.25));body.position.y=1.05;body.castShadow=true;g.add(body);
+ const head=new THREE.Mesh(new THREE.SphereGeometry(.43,16,12),material(0xd3b28f));head.position.y=2;head.castShadow=true;g.add(head);
+ const cloak=new THREE.Mesh(new THREE.ConeGeometry(.72,1.5,5,1,true),material(0x152d34));cloak.position.set(0,1.2,.35);cloak.rotation.x=Math.PI;cloak.castShadow=true;g.add(cloak);
+ const sword=new THREE.Mesh(new THREE.BoxGeometry(.12,1.55,.3),material(0xd7e4df,.18,.75));sword.position.set(.7,1.15,0);sword.rotation.z=-.5;sword.castShadow=true;g.add(sword);
+ const ring=new THREE.Mesh(new THREE.TorusGeometry(.7,.025,8,32),new THREE.MeshBasicMaterial({color:0xd6bd63}));ring.rotation.x=Math.PI/2;ring.position.y=.04;g.add(ring);
+ hero={g,body,sword,hp:100,maxHp:100,anim:0};add(g)
 }
-function makeRuin(x,z){
-  for(let i=0;i<7;i++){
-    const h=2+Math.random()*3,w=.8+Math.random()*.7;
-    const p=mesh(new THREE.BoxGeometry(w,h,w),mat(0x59615e),x+(Math.random()-.5)*7,h/2,z+(Math.random()-.5)*5);
-    p.rotation.y=Math.random()*Math.PI;decor.push(p);
-  }
+
+function createShrine(){
+ const g=new THREE.Group();g.position.set(0,0,-18);g.userData.type="shrine";add(g);
+ const base=new THREE.Mesh(new THREE.CylinderGeometry(2.1,2.6,.7,8),material(0x6c6b60));base.position.y=.35;base.castShadow=true;g.add(base);
+ const pillar=new THREE.Mesh(new THREE.CylinderGeometry(.6,.85,4,8),material(0x7b806e));pillar.position.y=2.3;pillar.castShadow=true;g.add(pillar);
+ const orb=new THREE.Mesh(new THREE.IcosahedronGeometry(.75,2),new THREE.MeshStandardMaterial({color:0xd6bd63,emissive:0x6f5c1b,emissiveIntensity:1.8,roughness:.25,metalness:.5}));orb.position.y=4.7;orb.castShadow=true;g.add(orb);
+ g.userData.action=()=>{if(!shrineUsed){shrineUsed=true;state.shards+=30;save();$("objective").textContent="Find the relic in the western ruins";$("objectiveText").textContent="The shrine revealed a path to the old ruins.";burst(g.position,0xd6bd63,25,6);toast("THE SHRINE AWAKENS")}else toast("The shrine is quiet.")};
 }
-function makeGate(x,z){
-  const stone=mat(0x4d5354);
-  [-3,3].forEach(px=>mesh(new THREE.BoxGeometry(1.4,7,1.4),stone,x+px,3.5,z));
-  mesh(new THREE.BoxGeometry(7,1.5,1.4),stone,x,6.2,z);
-  const glow=mesh(new THREE.BoxGeometry(4.8,.15,.15),mat(0x775cff,.3,.6),x,4.8,z-.8);
+function createChests(){
+ for(const p of [[-27,-22],[34,-17],[-30,28]]){
+  const g=new THREE.Group();g.position.set(p[0],0,p[1]);g.userData.type="chest";g.userData.open=false;add(g);
+  const box=new THREE.Mesh(new THREE.BoxGeometry(1.6,.9,1.1),material(0x765536,.65,.2));box.position.y=.5;box.castShadow=true;g.add(box);
+  const lid=new THREE.Mesh(new THREE.BoxGeometry(1.7,.45,1.15),material(0x9a6c3e,.6,.25));lid.position.y=1.15;lid.castShadow=true;g.add(lid);
+  g.userData.action=()=>{if(g.userData.open){toast("Empty chest");return}g.userData.open=true;lid.rotation.x=-1.05;state.shards+=20;save();burst(g.position,0xd6bd63,14,4);toast("+20 SHARDS")}
+ }
 }
-function createPlayer(){
-  const g=new THREE.Group();g.position.set(-38,0,18);scene.add(g);
-  const body=new THREE.Mesh(new THREE.CapsuleGeometry(.62,1.1,5,10),mat(0x2f4e78,.55,.35));body.position.y=1.15;body.castShadow=true;g.add(body);
-  const head=new THREE.Mesh(new THREE.IcosahedronGeometry(.47,1),mat(0xc3d0db,.65,.15));head.position.y=2.05;head.castShadow=true;g.add(head);
-  const cape=new THREE.Mesh(new THREE.ConeGeometry(.72,1.35,4,1,true),mat(0x201d42));cape.position.set(0,1.25,.48);cape.rotation.x=Math.PI;cape.castShadow=true;g.add(cape);
-  const sword=new THREE.Mesh(new THREE.BoxGeometry(.13,1.5,.28),mat(0x9eeaff,.18,.75));sword.position.set(.75,1.2,.05);sword.rotation.z=-.5;sword.castShadow=true;g.add(sword);
-  const ring=new THREE.Mesh(new THREE.TorusGeometry(.72,.025,8,32),new THREE.MeshBasicMaterial({color:0x55e6ff,transparent:true,opacity:.5}));ring.rotation.x=Math.PI/2;ring.position.y=.05;g.add(ring);
-  player={group:g,hp:totalStats().maxHp,maxHp:totalStats().maxHp,attackAnim:0,dodgeDir:new THREE.Vector3()};
-  camera.position.set(-42,15,30);camera.lookAt(g.position.x,1,g.position.z);
+function createEnemyCamp(){
+ const spots=[[-18,-4],[-25,8],[19,-5],[30,13],[-12,30]];
+ spots.forEach((p,i)=>spawnEnemy(i%2?"sentinel":"wraith",p[0],p[1]));
 }
+
 function spawnEnemy(type,x,z){
-  const data={
-    slime:{hp:45+save.level*8,speed:2.2,damage:7,reward:22,color:0x58d77b,scale:1},
-    brute:{hp:90+save.level*15,speed:1.25,damage:14,reward:38,color:0xd66a5e,scale:1.25},
-    archer:{hp:55+save.level*10,speed:1.7,damage:10,reward:32,color:0xb46cff,scale:1}
-  }[type];
-  const g=new THREE.Group();g.position.set(x,0,z);
-  const core=new THREE.Mesh(new THREE.DodecahedronGeometry(.75*data.scale,1),mat(data.color,.65,.15));core.position.y=.9*data.scale;core.castShadow=true;g.add(core);
-  const eye=new THREE.Mesh(new THREE.SphereGeometry(.12,8,8),mat(0xfff0bd,.25,.2));eye.position.set(0,1.05*data.scale,.68*data.scale);g.add(eye);
-  const e={type,group:g,core,hp:data.hp,maxHp:data.hp,speed:data.speed,damage:data.damage,reward:data.reward,attackCd:Math.random()+.5,hit:0};
-  scene.add(g);enemies.push(e);return e;
+ const g=new THREE.Group();g.position.set(x,0,z);add(g);
+ let hp=type==="wraith"?45:65;
+ const core=new THREE.Mesh(type==="wraith"?new THREE.IcosahedronGeometry(.7,1):new THREE.DodecahedronGeometry(.75,1),material(type==="wraith"?0x6673c9:0x8b594f,.55,.2));core.position.y=1;core.castShadow=true;g.add(core);
+ const eye=new THREE.Mesh(new THREE.SphereGeometry(.11,8,8),new THREE.MeshBasicMaterial({color:0xffe7a1}));eye.position.set(0,1.05,.68);g.add(eye);
+ enemies.push({g,core,type,hp,maxHp:hp,attack:1.5+Math.random(),dead:false})
 }
-function spawnWave(){
-  const spots=[[-18,-8],[-2,-17],[14,-10],[19,13],[-7,9]];
-  const count=4+Math.min(3,save.level);
-  for(let i=0;i<count;i++){
-    const s=spots[Math.floor(Math.random()*spots.length)];
-    const type=Math.random()<.55?"slime":Math.random()<.6?"archer":"brute";
-    spawnEnemy(type,s[0]+(Math.random()-.5)*4,s[1]+(Math.random()-.5)*4);
-  }
-  questKills=0;
-  $("questText").textContent="Defeat "+count+" corrupted guardians.";
-}
+
 function spawnBoss(){
-  if(bossSpawned)return;
-  bossSpawned=true;
-  const g=new THREE.Group();g.position.set(31,0,0);
-  const body=new THREE.Mesh(new THREE.DodecahedronGeometry(2.25,1),mat(0x4a315e,.5,.45));body.position.y=2.3;body.castShadow=true;g.add(body);
-  const hornMat=mat(0x8c778e,.5,.25);
-  for(const side of [-1,1]){const h=new THREE.Mesh(new THREE.ConeGeometry(.35,1.5,6),hornMat);h.position.set(side*1.15,4,0);h.rotation.z=side*.5;h.castShadow=true;g.add(h)}
-  const eye=new THREE.Mesh(new THREE.SphereGeometry(.28,12,8),mat(0xff456b,.2,.4));eye.position.set(0,2.45,2.0);g.add(eye);
-  const aura=new THREE.Mesh(new THREE.TorusGeometry(2.5,.07,8,48),new THREE.MeshBasicMaterial({color:0xff5577,transparent:true,opacity:.45}));aura.rotation.x=Math.PI/2;aura.position.y=.1;g.add(aura);
-  scene.add(g);
-  boss={group:g,hp:480+save.level*90,maxHp:480+save.level*90,attackCd:2,phase:1,slam:0};
-  $("bossName").textContent="RUIN GUARDIAN";$("bossbar").classList.remove("hidden");updateBossUI();
-  $("questTitle").textContent="The Ruin Guardian";$("questText").textContent="Defeat the Guardian.";
-  toast("BOSS ARRIVED");sound(90,.35,"sawtooth");
+ if(boss)return;
+ const g=new THREE.Group();g.position.set(31,0,-23);add(g);
+ const body=new THREE.Mesh(new THREE.CylinderGeometry(2.2,2.8,4.5,8),material(0x5a625d,.5,.45));body.position.y=2.25;body.castShadow=true;g.add(body);
+ for(const x of [-1.7,1.7]){const h=new THREE.Mesh(new THREE.ConeGeometry(.45,2.2,6),material(0x887d68,.5,.3));h.position.set(x,4.7,0);h.rotation.z=x*.18;g.add(h)}
+ const eye=new THREE.Mesh(new THREE.SphereGeometry(.32,12,8),new THREE.MeshBasicMaterial({color:0xff5f63}));eye.position.set(0,2.8,2.15);g.add(eye);
+ boss={g,hp:420,maxHp:420,cd:2,phase:1};$("boss").classList.remove("hidden");$("bossName").textContent="STONE WARDEN";toast("THE WARDEN AWAKENS");burst(g.position,0xff5f63,30,6)
 }
-function updateBossUI(){
-  if(!boss)return;
-  $("bossHp").style.width=Math.max(0,boss.hp/boss.maxHp*100)+"%";
-  $("bossHpText").textContent=Math.ceil(Math.max(0,boss.hp))+" / "+boss.maxHp;
+
+function nearestEnemy(){
+ let best=null,d=7;for(const e of enemies){const x=dist(hero.g,e.g);if(x<d){d=x;best=e}}return best
 }
-function clearEnemies(){
-  enemies.forEach(e=>scene.remove(e.group));enemies=[];
-  projectiles.forEach(p=>scene.remove(p.mesh));projectiles=[];
+function faceTarget(t){if(!t)return;const v=t.g.position.clone().sub(hero.g.position);hero.g.rotation.y=Math.atan2(v.x,v.z)}
+function lightAttack(){
+ if(!running||paused||dead||won||attackCD>0)return;
+ attackCD=.25;combo=comboTimer>0?(combo%3)+1:1;comboTimer=.65;hero.anim=.25;const e=locked||nearestEnemy();if(e&&dist(hero.g,e.g)<4.2){faceTarget(e);hit(e,22+combo*7)}
 }
-function beginAdventure(){
-  started=true;paused=false;dead=false;victory=false;
-  $("start-screen").classList.add("hidden");
-  clearEnemies();questKills=0;bossSpawned=false;boss=null;
-  $("bossbar").classList.add("hidden");
-  player.group.position.set(-38,0,18);player.hp=totalStats().maxHp;
-  spawnWave();toast("THE VALLEY AWAITS");sound(440,.1);
+function heavyAttack(){
+ if(!running||paused||dead||won||heavyCD>0||stamina<25)return;
+ heavyCD=1.2;stamina-=25;hero.anim=.45;const e=locked||nearestEnemy();burst(hero.g.position,0xd6bd63,12,3);
+ for(const x of enemies.slice())if(dist(hero.g,x.g)<4.8)hit(x,42);
+ if(boss&&dist(hero.g,boss.g)<5.5)hitBoss(55)
 }
-function damagePlayer(amount){
-  if(invuln>0||dead)return;
-  player.hp-=amount;hitFlash=.15;sound(120,.08,"square");
-  if(player.hp<=0){player.hp=0;die()}
-}
-function die(){
-  dead=true;paused=false;$("game-over").classList.remove("hidden");sound(70,.3,"sawtooth");
-}
-function finishVictory(){
-  victory=true;paused=true;
-  save.coins+=250;gainXP(220);save.chapter=2;saveGame();
-  $("bossbar").classList.add("hidden");$("victory").classList.remove("hidden");sound(660,.2);setTimeout(()=>sound(990,.2),120);
-}
-function attack(){
-  if(!started||paused||dead||attackCd>0||victory)return;
-  attackCd=.38;player.attackAnim=.22;sound(190,.07,"square");
-  let best=null,bestD=4.8;
-  const forward=new THREE.Vector3(0,0,-1).applyQuaternion(player.group.quaternion);
-  for(const e of enemies){
-    const d=player.group.position.distanceTo(e.group.position);
-    const dir=e.group.position.clone().sub(player.group.position).normalize();
-    if(d<bestD&&forward.dot(dir)>.05){best=e;bestD=d}
-  }
-  if(boss){
-    const d=player.group.position.distanceTo(boss.group.position);
-    if(d<5.3){hitBoss(totalStats().damage);return}
-  }
-  if(best)hitEnemy(best,totalStats().damage);
-}
-function hitEnemy(e,dmg){
-  const crit=Math.random()<totalStats().crit;dmg=Math.round(dmg*(crit?1.8:1));
-  e.hp-=dmg;e.hit=.12;e.core.material.emissive=new THREE.Color(crit?0xffe56a:0x55e6ff);e.core.material.emissiveIntensity=crit?2:1;
-  spawnBurst(e.group.position,crit?0xffd45a:0x55e6ff,crit?8:4);
-  if(e.hp<=0){
-    scene.remove(e.group);enemies=enemies.filter(x=>x!==e);
-    save.coins+=e.reward;gainXP(25);questKills++;
-    dropLoot(e.group.position);
-    if(enemies.length===0){spawnBoss()}
-    else if(questKills>=4){toast("AREA CLEARED");setTimeout(()=>spawnBoss(),500)}
-  }
+function hit(e,dmg){
+ e.hp-=dmg;burst(e.g.position,0xe6d47a,7,3);e.core.scale.setScalar(1.2);setTimeout(()=>{if(e.core)e.core.scale.setScalar(1)},100);
+ if(e.hp<=0){e.dead=true;state.shards+=10;save();burst(e.g.position,0xb7ffe9,18,5);scene.remove(e.g);enemies=enemies.filter(x=>x!==e);toast("+10 SHARDS");if(enemies.length===0&&!boss)spawnBoss()}
 }
 function hitBoss(dmg){
-  const crit=Math.random()<totalStats().crit;dmg=Math.round(dmg*(crit?1.8:1));
-  boss.hp-=dmg;spawnBurst(boss.group.position,crit?0xffd45a:0xff5577,10);sound(260,.05,"square");updateBossUI();
-  if(boss.hp<=boss.maxHp*.5&&boss.phase===1){boss.phase=2;toast("GUARDIAN ENRAGED");sound(80,.2,"sawtooth")}
-  if(boss.hp<=0){scene.remove(boss.group);boss=null;finishVictory()}
+ boss.hp-=dmg;burst(boss.g.position,0xff706d,12,4);updateBoss();
+ if(boss.hp<boss.maxHp*.5&&boss.phase===1){boss.phase=2;toast("WARDEN ENRAGED")}
+ if(boss.hp<=0){scene.remove(boss.g);boss=null;won=true;paused=true;state.relics++;state.shards+=100;save();$("boss").classList.add("hidden");$("win").classList.remove("hidden")}
 }
-function skill(){
-  if(!started||paused||dead||skillCd>0)return;
-  skillCd=4.2;sound(520,.14,"sine");
-  const radius=5.5;spawnBurst(player.group.position,0x9b6cff,26);
-  for(const e of [...enemies])if(player.group.position.distanceTo(e.group.position)<radius)hitEnemy(e,Math.round(totalStats().damage*1.25));
-  if(boss&&player.group.position.distanceTo(boss.group.position)<radius)hitBoss(Math.round(totalStats().damage*1.25));
-  toast("ARC NOVA");
+function updateBoss(){if(!boss)return;$("bossHp").style.width=Math.max(0,boss.hp/boss.maxHp*100)+"%";$("bossText").textContent=Math.ceil(boss.hp)+" / "+boss.maxHp}
+
+function dash(){
+ if(!running||paused||dead||dashCD>0||stamina<30)return;dashCD=.8;stamina-=30;invuln=.42;
+ let d=new THREE.Vector3(stick.x,0,stick.y);if(d.lengthSq()<.1)d.set(0,0,-1).applyQuaternion(hero.g.quaternion);hero.g.position.addScaledVector(d.normalize(),7);burst(hero.g.position,0xb7ffe9,8,2)
 }
-function dodge(){
-  if(!started||paused||dead||dodgeCd>0)return;
-  dodgeCd=1.1;dodgeTime=.28;invuln=.38;
-  const d=new THREE.Vector3(move.x,0,move.z);
-  if(d.lengthSq()<.1)d.set(0,0,-1).applyQuaternion(player.group.quaternion);
-  player.dodgeDir.copy(d.normalize());sound(340,.06,"triangle");
+function move(dt){
+ let x=stick.x,z=stick.y;if(keys.a||keys.arrowleft)x--;if(keys.d||keys.arrowright)x++;if(keys.w||keys.arrowup)z--;if(keys.s||keys.arrowdown)z++;
+ const d=new THREE.Vector3(x,0,z);if(d.lengthSq()>1)d.normalize();
+ hero.g.position.addScaledVector(d,6*dt);if(d.lengthSq()>.02)hero.g.rotation.y=THREE.MathUtils.lerp(hero.g.rotation.y,Math.atan2(d.x,d.z),.18);
+ hero.g.position.x=THREE.MathUtils.clamp(hero.g.position.x,-48,48);hero.g.position.z=THREE.MathUtils.clamp(hero.g.position.z,-48,48);
+ stamina=Math.min(100,stamina+18*dt);attackCD=Math.max(0,attackCD-dt);heavyCD=Math.max(0,heavyCD-dt);dashCD=Math.max(0,dashCD-dt);invuln=Math.max(0,invuln-dt);comboTimer=Math.max(0,comboTimer-dt)
 }
 function enemyAI(dt){
-  for(const e of enemies){
-    e.attackCd-=dt;e.hit=Math.max(0,e.hit-dt);
-    const to=player.group.position.clone().sub(e.group.position);to.y=0;
-    const dist=to.length();to.normalize();
-    if(e.type==="archer"){
-      if(dist>8)e.group.position.addScaledVector(to,e.speed*dt);
-      else if(dist<5)e.group.position.addScaledVector(to,-e.speed*.7*dt);
-      e.group.lookAt(player.group.position.x,e.group.position.y+.8,player.group.position.z);
-      if(e.attackCd<=0&&dist<12){e.attackCd=2.2;shoot(e)}
-    }else{
-      if(dist>1.8)e.group.position.addScaledVector(to,e.speed*dt);
-      else if(e.attackCd<=0){e.attackCd=e.type==="brute"?1.6:1.1;damagePlayer(e.damage)}
-      e.group.lookAt(player.group.position.x,e.group.position.y+.7,player.group.position.z);
-    }
-    e.group.position.x=THREE.MathUtils.clamp(e.group.position.x,-44,44);e.group.position.z=THREE.MathUtils.clamp(e.group.position.z,-28,28);
-    e.core.rotation.y+=dt*1.5;
-    if(e.hit>0)e.core.scale.setScalar(1.18);else e.core.scale.setScalar(1);
-  }
-}
-function shoot(e){
-  const dir=player.group.position.clone().add(new THREE.Vector3(0,1,0)).sub(e.group.position).normalize();
-  const meshP=new THREE.Mesh(new THREE.SphereGeometry(.16,8,8),mat(0xc37aff,.25,.4));
-  meshP.position.copy(e.group.position).y=1;scene.add(meshP);
-  projectiles.push({mesh:meshP,dir,speed:11,life:3,damage:e.damage});
+ for(const e of enemies){if(e.dead)continue;e.attack-=dt;const v=hero.g.position.clone().sub(e.g.position);v.y=0;const d=v.length();if(d>2)e.g.position.addScaledVector(v.normalize(),(e.type==="wraith"?1.9:1.4)*dt);else if(e.attack<=0&&invuln<=0){e.attack=e.type==="wraith"?1.5:1.9;hero.hp-=e.type==="wraith"?8:12;burst(hero.g.position,0xff5f63,5,2);if(hero.hp<=0)die()}e.g.lookAt(hero.g.position.x,1,hero.g.position.z);e.core.rotation.y+=dt*2}
 }
 function bossAI(dt){
-  if(!boss)return;
-  boss.attackCd-=dt;
-  boss.group.rotation.y+=dt*.3;
-  const to=player.group.position.clone().sub(boss.group.position);to.y=0;
-  const dist=to.length();
-  if(dist>5)boss.group.position.addScaledVector(to.normalize(),(boss.phase===2?1.35:.85)*dt);
-  else if(boss.attackCd<=0){
-    boss.attackCd=boss.phase===2?1.4:2.1;boss.slam=.55;
-    spawnBurst(boss.group.position,0xff5577,18);sound(75,.18,"sawtooth");
-  }
-  if(boss.slam>0){
-    boss.slam-=dt;
-    if(boss.slam<.15&&dist<5.8)damagePlayer(boss.phase===2?28:20);
-  }
+ if(!boss)return;boss.cd-=dt;const v=hero.g.position.clone().sub(boss.g.position);v.y=0;const d=v.length();if(d>5)boss.g.position.addScaledVector(v.normalize(),(boss.phase===2?1.5:.9)*dt);if(d<6&&boss.cd<=0){boss.cd=boss.phase===2?1.2:2;burst(boss.g.position,0xff5f63,20,5);if(invuln<=0)hero.hp-=boss.phase===2?24:16;if(hero.hp<=0)die()}boss.g.rotation.y+=dt*.3;updateBoss()
 }
-function updateProjectiles(dt){
-  for(const p of [...projectiles]){
-    p.life-=dt;p.mesh.position.addScaledVector(p.dir,p.speed*dt);
-    if(p.life<=0||p.mesh.position.distanceTo(player.group.position)<1){
-      if(p.life>0)damagePlayer(p.damage);
-      scene.remove(p.mesh);projectiles=projectiles.filter(x=>x!==p);
-    }
-  }
+function interact(){
+ if(!running||paused||dead)return;
+ let best=null,d=4.5;scene.traverse(o=>{if(o.userData?.action){const x=dist(hero.g,o);if(x<d){d=x;best=o}}});if(best)best.userData.action();else toast("Nothing to interact with here")
 }
-function dropLoot(pos){
-  if(Math.random()<.7){
-    const g=new THREE.Group();g.position.copy(pos);g.position.y=.5;
-    const gem=new THREE.Mesh(new THREE.OctahedronGeometry(.28),mat(0xffd45a,.25,.5));gem.castShadow=true;g.add(gem);scene.add(g);
-    loot.push({group:g,value:8+Math.floor(Math.random()*15)});
-  }
+function updateObjective(){
+ if(!shrineUsed){$("objective").textContent="Find the ancient shrine";$("objectiveText").textContent="Walk north and investigate the glowing shrine."}
+ else if(!relic){$("objective").textContent="Recover the lost relic";$("objectiveText").textContent="Search the western ruins for a relic."}
+ else {$("objective").textContent="Defeat the Stone Warden";$("objectiveText").textContent="The guardian protects the island's exit."}
 }
-function updateLoot(dt){
-  for(const l of [...loot]){
-    l.group.rotation.y+=dt*2;l.group.position.y=.5+Math.sin(performance.now()*.004)*.08;
-    if(l.group.position.distanceTo(player.group.position)<2){
-      save.coins+=l.value;saveGame();toast("+"+l.value+" COINS");scene.remove(l.group);loot=loot.filter(x=>x!==l);sound(700,.05);
-    }
-  }
+function updateUI(){
+ $("hp").style.width=Math.max(0,hero.hp/hero.maxHp*100)+"%";$("stamina").style.width=stamina+"%";$("shards").textContent=state.shards;$("level").textContent=state.level;updateObjective()
 }
-function spawnBurst(pos,color,count){
-  for(let i=0;i<count;i++){
-    const m=new THREE.Mesh(new THREE.SphereGeometry(.045+Math.random()*.07,5,5),new THREE.MeshBasicMaterial({color,transparent:true}));
-    m.position.copy(pos);m.position.y+=.7;scene.add(m);
-    effects.push({mesh:m,life:.35+Math.random()*.3,vel:new THREE.Vector3((Math.random()-.5)*5,Math.random()*4,(Math.random()-.5)*5)});
-  }
-}
-function updateEffects(dt){
-  for(const e of [...effects]){
-    e.life-=dt;e.mesh.position.addScaledVector(e.vel,dt);e.vel.y-=7*dt;e.mesh.scale.multiplyScalar(.94);
-    e.mesh.material.opacity=Math.max(0,e.life*2);
-    if(e.life<=0){scene.remove(e.mesh);effects=effects.filter(x=>x!==e)}
-  }
-}
-function updatePlayer(dt){
-  const s=totalStats();
-  let dir=new THREE.Vector3(move.x,0,move.z);
-  if(dir.lengthSq()>1)dir.normalize();
-  if(dodgeTime>0){
-    dodgeTime-=dt;player.group.position.addScaledVector(player.dodgeDir,17*dt);
-  }else{
-    player.group.position.addScaledVector(dir,s.speed*dt);
-    if(dir.lengthSq()>.02){const target=Math.atan2(dir.x,dir.z);player.group.rotation.y=THREE.MathUtils.lerp(player.group.rotation.y,target,1-Math.pow(.001,dt))}
-  }
-  player.group.position.x=THREE.MathUtils.clamp(player.group.position.x,-44,44);
-  player.group.position.z=THREE.MathUtils.clamp(player.group.position.z,-28,28);
-  attackCd=Math.max(0,attackCd-dt);skillCd=Math.max(0,skillCd-dt);dodgeCd=Math.max(0,dodgeCd-dt);invuln=Math.max(0,invuln-dt);
-  player.attackAnim=Math.max(0,player.attackAnim-dt);hitFlash=Math.max(0,hitFlash-dt);
-  const sword=player.group.children[3];if(sword)sword.rotation.z=-.5+(player.attackAnim>0?Math.sin((.22-player.attackAnim)/.22*Math.PI)*1.5:0);
-  if(player.hp<player.maxHp&&enemies.length===0&&boss===null)player.hp=Math.min(player.maxHp,player.hp+dt*4);
-}
+function die(){dead=true;paused=true;$("lose").classList.remove("hidden")}
+function updateFX(dt){for(const f of fx.slice()){f.life-=dt;f.m.position.addScaledVector(f.v,dt);f.v.y-=8*dt;f.m.scale.multiplyScalar(.94);if(f.life<=0){scene.remove(f.m);fx=fx.filter(x=>x!==f)}}}
 function updateCamera(dt){
-  const target=player.group.position.clone().add(new THREE.Vector3(0,1,0));
-  const desired=target.clone().add(new THREE.Vector3(0,13,14));
-  camera.position.lerp(desired,1-Math.pow(.001,dt));camera.lookAt(target);
+ const target=hero.g.position.clone().add(new THREE.Vector3(0,1,0));const off=new THREE.Vector3(0,8,10).applyAxisAngle(new THREE.Vector3(0,1,0),hero.g.rotation.y);camera.position.lerp(target.clone().add(off),1-Math.pow(.001,dt));camera.lookAt(target)
 }
-function updateQuest(){
-  $("hpBar").style.width=Math.max(0,player.hp/player.maxHp*100)+"%";
-  $("xpBar").style.width=Math.max(0,save.xp/xpNeed()*100)+"%";
+function loop(){
+ const dt=Math.min(.033,clock.getDelta());if(running&&!paused&&!dead&&!won){move(dt);enemyAI(dt);bossAI(dt);updateFX(dt);updateCamera(dt);updateUI()}
+ renderer.render(scene,camera);requestAnimationFrame(loop)
 }
-function animateDecor(dt){
-  for(const d of decor)if(d.userData?.crystal)d.rotation.y+=dt;
+
+function start(){
+ running=true;paused=false;dead=false;won=false;relic=false;shrineUsed=false;hero.hp=hero.maxHp;hero.g.position.set(0,0,18);enemies.forEach(e=>scene.remove(e.g));enemies=[];boss=null;$("boss").classList.add("hidden");createEnemyCamp();$("start").classList.add("hidden");$("lose").classList.add("hidden");$("win").classList.add("hidden");toast("EXPEDITION STARTED")
 }
-function update(dt){
-  if(!started||paused||dead||victory)return;
-  updatePlayer(dt);enemyAI(dt);bossAI(dt);updateProjectiles(dt);updateLoot(dt);updateEffects(dt);updateCamera(dt);updateQuest();
-  animateDecor(dt);
-  if(player.group.position.x>27&&!bossSpawned&&enemies.length===0)spawnBoss();
+function pause(){if(!running||dead||won)return;paused=!paused;$("pauseScreen").classList.toggle("hidden",!paused)}
+function bind(){
+ $("startBtn").onclick=start;$("retry").onclick=start;$("again").onclick=start;$("pause").onclick=pause;$("resume").onclick=pause;$("restart").onclick=start;$("fullscreen").onclick=async()=>{try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen()}catch{}};
+ $("light").onpointerdown=e=>{e.preventDefault();lightAttack()};$("heavy").onpointerdown=e=>{e.preventDefault();heavyAttack()};$("dash").onpointerdown=e=>{e.preventDefault();dash()};$("interact").onpointerdown=e=>{e.preventDefault();interact()};
+ addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true;if(e.key===" ")dash();if(e.key.toLowerCase()==="j"||e.key==="Enter")lightAttack();if(e.key.toLowerCase()==="k")heavyAttack();if(e.key.toLowerCase()==="e")interact();if(e.key.toLowerCase()==="f"){locked=locked?null:nearestEnemy();if(locked)toast("LOCKED ON")};if(e.key==="Escape")pause()});addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
+ renderer.domElement.addEventListener("pointerdown",e=>{if(e.pointerType==="mouse")lightAttack()});
+ const z=$("stick-zone"),s=$("stick");let pid=null;
+ z.onpointerdown=e=>{pid=e.pointerId;stick.active=true;z.setPointerCapture(pid);joy(e)};z.onpointermove=e=>{if(e.pointerId===pid)joy(e)};z.onpointerup=release;z.onpointercancel=release;
+ function joy(e){const r=z.getBoundingClientRect(),dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2),max=r.width*.35,l=Math.hypot(dx,dy);const q=l>max?max/l:1;stick.x=dx/max*q;stick.y=dy/max*q;s.style.transform=`translate(${dx*q}px,${dy*q}px)`}
+ function release(){stick.active=false;stick.x=0;stick.y=0;s.style.transform="translate(0,0)"}
+ addEventListener("resize",()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)})
 }
-function loop(t){
-  const dt=Math.min(.033,(t-(clock?.last||t))/1000);if(clock)clock.last=t;else clock={last:t};
-  update(dt);renderer.render(scene,camera);requestAnimationFrame(loop);
-}
-function resize(){
-  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);
-}
-function setMove(x,z){move.x=THREE.MathUtils.clamp(x,-1,1);move.z=THREE.MathUtils.clamp(z,-1,1)}
-function bindControls(){
-  $("start-game").onclick=()=>{sound(440,.1);beginAdventure()};
-  $("retry").onclick=()=>{ $("game-over").classList.add("hidden");beginAdventure() };
-  $("continue").onclick=()=>{ $("victory").classList.add("hidden");paused=false;started=true;bossSpawned=true;toast("CHAPTER 2 COMING · EXPLORE THE VALLEY") };
-  $("pause").onclick=togglePause;$("resume").onclick=togglePause;
-  $("open-menu").onclick=()=>{$("pause-screen").classList.add("hidden");$("menu").classList.remove("hidden")};
-  $("close-menu").onclick=()=>{$("menu").classList.add("hidden");if(!dead&&!victory)paused=false};
-  $("fullscreen").onclick=toggleFullscreen;
-  $("attack").onpointerdown=e=>{e.preventDefault();attack()};$("skill").onpointerdown=e=>{e.preventDefault();skill()};$("dodge").onpointerdown=e=>{e.preventDefault();dodge()};
-  $("reset-save").onclick=()=>{if(confirm("Reset all progress?")){localStorage.removeItem(SAVE_KEY);save=loadSave();updateUI();toast("Save reset")}};
-  document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));document.querySelectorAll(".tab-page").forEach(x=>x.classList.remove("active"));b.classList.add("active");$(b.dataset.tab).classList.add("active")});
-  addEventListener("keydown",e=>{
-    keys[e.key.toLowerCase()]=true;
-    if([" ","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key))e.preventDefault();
-    if(e.key==="j"||e.key==="Enter")attack();if(e.key==="k")skill();if(e.key===" ")dodge();if(e.key==="Escape")togglePause();
-  });
-  addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
-  renderer.domElement.addEventListener("pointerdown",e=>{if(e.pointerType==="mouse")attack()});
-  bindJoystick();
-}
-function keyboardMove(){
-  let x=0,z=0;if(keys.a||keys.arrowleft)x--;if(keys.d||keys.arrowright)x++;if(keys.w||keys.arrowup)z--;if(keys.s||keys.arrowdown)z++;
-  if(x||z)setMove(x,z);else if(!joystickActive)setMove(0,0);
-}
-function bindJoystick(){
-  const base=$("joystick"),stick=$("stick");
-  base.addEventListener("pointerdown",e=>{joystickActive=true;joystickPointer=e.pointerId;base.setPointerCapture(e.pointerId);moveStick(e)});
-  base.addEventListener("pointermove",e=>{if(e.pointerId===joystickPointer)moveStick(e)});
-  base.addEventListener("pointerup",releaseStick);base.addEventListener("pointercancel",releaseStick);
-  function moveStick(e){
-    const r=base.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
-    let dx=e.clientX-cx,dy=e.clientY-cy,max=r.width*.36;const len=Math.hypot(dx,dy);
-    if(len>max){dx=dx/len*max;dy=dy/len*max}
-    stick.style.transform=`translate(${dx}px,${dy}px)`;setMove(dx/max,dy/max);
-  }
-  function releaseStick(){joystickActive=false;stick.style.transform="translate(0,0)";setMove(0,0)}
-  setInterval(keyboardMove,16);
-}
-async function toggleFullscreen(){
-  try{
-    if(!document.fullscreenElement)await document.documentElement.requestFullscreen?.();
-    else await document.exitFullscreen?.();
-  }catch{toast("Fullscreen is not available in this browser")}
-}
-function togglePause(){
-  if(!started||dead||victory)return;
-  paused=!paused;$("pause-screen").classList.toggle("hidden",!paused);
-}
+
 init();
