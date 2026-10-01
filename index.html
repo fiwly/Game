@@ -1,1 +1,104 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Neon Quest</title><link rel="stylesheet" href="style.css"></head><body><main class="app"><header><div><h1>NEON QUEST</h1><p>Fight • Earn • Upgrade • Survive</p></div><div class="money">🪙 <b id="coins">0</b></div></header><nav><button class="tab active" data-screen="play">PLAY</button><button class="tab" data-screen="shop">SHOP</button><button class="tab" data-screen="heroes">HERO</button><button class="tab" data-screen="save">SAVE</button></nav><section id="play" class="screen active"><div class="hud"><span>Stage <b id="stage">1</b>/5</span><span>❤️ <b id="hp">100</b></span><span>XP <b id="xp">0</b></span></div><canvas id="game" width="720" height="420"></canvas><div class="controls"><button id="left">◀</button><button id="attack">⚔ ATTACK</button><button id="right">▶</button></div><div class="actions"><button id="start">START STAGE</button><button id="next" disabled>NEXT STAGE</button></div><p id="status">Choose your hero, then start Stage 1.</p></section><section id="shop" class="screen"><h2>SHOP</h2><div id="shopItems" class="cards"></div></section><section id="heroes" class="screen"><h2>HERO</h2><div id="heroItems" class="cards"></div></section><section id="save" class="screen"><h2>SAVE DATA</h2><div class="savebox"><p>Your progress saves automatically on this device.</p><p>Coins, stage, hero and upgrades are stored locally.</p><button id="reset">RESET SAVE</button></div></section></main><script src="game.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#070a12">
+  <title>NEON QUEST 3D</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="game-shell">
+    <div id="game"></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">NQ</div>
+        <div><strong>NEON QUEST</strong><small>3D ACTION RPG</small></div>
+      </div>
+      <div class="top-actions">
+        <div class="coin">◈ <b id="coins">0</b></div>
+        <button id="fullscreen" class="icon-btn" aria-label="Fullscreen">⛶</button>
+        <button id="pause" class="icon-btn" aria-label="Pause">Ⅱ</button>
+      </div>
+    </header>
+
+    <div id="hud">
+      <div class="player-card">
+        <div class="avatar">⚔</div>
+        <div class="player-info">
+          <div class="name-row"><b id="heroName">Knight</b><span id="level">LV 1</span></div>
+          <div class="bar hp"><i id="hpBar"></i></div>
+          <div class="bar xp"><i id="xpBar"></i></div>
+        </div>
+      </div>
+      <div class="quest-card">
+        <small>QUEST</small><b id="questTitle">The First Gate</b>
+        <span id="questText">Reach the ruins and defeat the guardians.</span>
+      </div>
+    </div>
+
+    <div id="bossbar" class="bossbar hidden">
+      <div><b id="bossName">RUIN GUARDIAN</b><span id="bossHpText">0 / 0</span></div>
+      <div class="boss-track"><i id="bossHp"></i></div>
+    </div>
+
+    <div id="toast"></div>
+
+    <div id="mobile-controls">
+      <div id="joystick" class="joystick"><div id="stick"></div></div>
+      <div class="combat-controls">
+        <button id="skill" class="action skill">✦<small>SKILL</small></button>
+        <button id="dodge" class="action dodge">◆<small>DODGE</small></button>
+        <button id="attack" class="action attack">⚔<small>ATTACK</small></button>
+      </div>
+    </div>
+
+    <div id="desktop-hint">WASD / ARROWS to move · SPACE to dodge · J / CLICK to attack · K for skill</div>
+
+    <div id="start-screen" class="overlay">
+      <div class="title-card">
+        <div class="eyebrow">A BROWSER ACTION RPG</div>
+        <h1>NEON<br><span>QUEST</span></h1>
+        <p>Explore the ruined valley. Fight corrupted creatures. Grow stronger. Defeat the Guardian.</p>
+        <div class="feature-row"><span>◆ 3D WORLD</span><span>◆ BOSS FIGHT</span><span>◆ SAVE</span></div>
+        <button id="start-game" class="primary">ENTER THE VALLEY</button>
+        <small>Best with landscape mode on iPad.</small>
+      </div>
+    </div>
+
+    <div id="pause-screen" class="overlay hidden">
+      <div class="panel">
+        <div class="eyebrow">PAUSED</div><h2>VALLEY PAUSED</h2>
+        <button id="resume" class="primary">RESUME</button>
+        <button id="open-menu">CHARACTER & SHOP</button>
+      </div>
+    </div>
+
+    <div id="menu" class="overlay hidden">
+      <div class="panel wide">
+        <button id="close-menu" class="close">×</button>
+        <div class="tabs"><button class="tab active" data-tab="character">CHARACTER</button><button class="tab" data-tab="shop">SHOP</button><button class="tab" data-tab="save">SAVE</button></div>
+        <section id="character" class="tab-page active">
+          <h2 id="menuHeroName">Knight</h2>
+          <div id="stats"></div>
+          <div id="equipment"></div>
+        </section>
+        <section id="shop" class="tab-page"><h2>TRAVELER'S SHOP</h2><div id="shop-items" class="shop-grid"></div></section>
+        <section id="save" class="tab-page"><h2>GAME DATA</h2><p>Progress is saved automatically on this device.</p><button id="reset-save" class="danger">RESET SAVE</button></section>
+      </div>
+    </div>
+
+    <div id="game-over" class="overlay hidden">
+      <div class="panel"><div class="eyebrow">THE VALLEY CLAIMED YOU</div><h2>DEFEATED</h2><p>Return to the last checkpoint and try again.</p><button id="retry" class="primary">TRY AGAIN</button></div>
+    </div>
+
+    <div id="victory" class="overlay hidden">
+      <div class="panel"><div class="eyebrow">CHAPTER COMPLETE</div><h2>GUARDIAN FALLEN</h2><p>You cleared the first chapter of Neon Quest.</p><button id="continue" class="primary">CONTINUE EXPLORING</button></div>
+    </div>
+
+    <div id="loading" class="loading"><div class="loader"></div><b>BUILDING THE VALLEY…</b></div>
+  </div>
+  <script type="module" src="game.js"></script>
+</body>
+</html>
