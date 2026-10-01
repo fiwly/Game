@@ -12,38 +12,15 @@
 @media(orientation:portrait) and (max-width:800px){.screen:after{content:"ROTATE TO LANDSCAPE";position:absolute;top:12px;right:14px;color:#708287;font-size:7px;letter-spacing:2px}}
 /* Touch-device controls: show the full game controller even when iPad requests desktop layout */
 @media (pointer: coarse) {
-  #mobile{
-    display:flex !important;
-    bottom:max(18px,env(safe-area-inset-bottom));
-    padding:0 24px;
-    z-index:80 !important;
-  }
+  #mobile{display:flex !important;position:fixed;inset:0;padding:0;z-index:45 !important;align-items:flex-end;justify-content:space-between;pointer-events:none}
+  #stick-zone{position:absolute;left:max(22px,env(safe-area-inset-left));bottom:max(24px,env(safe-area-inset-bottom));width:128px;height:128px;box-shadow:0 8px 30px #0008,inset 0 0 24px #9ddfc40c}
+  #stick{width:54px;height:54px;left:37px;top:37px}
+  .actions{position:absolute;right:max(18px,env(safe-area-inset-right));bottom:max(20px,env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(3,auto);grid-template-areas:"lock center interact" "heavy dash light";gap:10px;align-items:center;justify-items:center;pointer-events:auto}
+  #light{grid-area:light}.actions button:first-child{width:78px;height:78px}
+  #dash{grid-area:dash}.actions button:nth-child(2){width:66px;height:66px}
+  #heavy{grid-area:heavy}.actions button:nth-child(3){width:66px;height:66px;border-color:#e4c45d80}
+  #interact{grid-area:interact}#lock{grid-area:lock}#center{grid-area:center}
+  .actions button:nth-child(4),.actions button:nth-child(5),.actions button:nth-child(6){width:54px;height:54px;font-size:16px}
+  .actions button{background:#071219b8;backdrop-filter:blur(6px);box-shadow:0 8px 24px #0008,inset 0 0 14px #ffffff08}
   #desktop-help{display:none !important}
-  #stick-zone{
-    width:128px;
-    height:128px;
-  }
-  #stick{
-    width:54px;
-    height:54px;
-    left:37px;
-    top:37px;
-  }
-  .actions{
-    gap:10px;
-  }
-  .actions button{
-    width:66px;
-    height:66px;
-  }
-  .actions button:first-child{
-    width:78px;
-    height:78px;
-  }
-  .actions button:nth-child(4),
-  .actions button:nth-child(5),
-  .actions button:nth-child(6){
-    width:54px;
-    height:54px;
-  }
 }
