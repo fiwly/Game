@@ -16,7 +16,7 @@
     display:flex !important;
     bottom:max(18px,env(safe-area-inset-bottom));
     padding:0 24px;
-    z-index:150 !important;
+    z-index:80 !important;
   }
   #desktop-help{display:none !important}
   #stick-zone{
