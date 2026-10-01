@@ -140,6 +140,19 @@ function enemyAI(dt){
 function bossAI(dt){
  if(!boss)return;boss.cd-=dt;const v=hero.g.position.clone().sub(boss.g.position);v.y=0;const d=v.length();if(d>5)boss.g.position.addScaledVector(v.normalize(),(boss.phase===2?1.5:.9)*dt);if(d<6&&boss.cd<=0){boss.cd=boss.phase===2?1.2:2;burst(boss.g.position,0xff5f63,20,5);if(invuln<=0)hero.hp-=boss.phase===2?24:16;if(hero.hp<=0)die()}boss.g.rotation.y+=dt*.3;updateBoss()
 }
+function toggleLock(){
+ if(!running||paused||dead)return;
+ if(locked){locked=null;$("lock").classList.remove("locked");toast("LOCK-ON RELEASED");return}
+ locked=nearestEnemy();
+ if(locked){$("lock").classList.add("locked");toast("LOCKED ON")}
+ else toast("NO TARGET IN RANGE")
+}
+function centerCamera(){
+ if(!hero)return;
+ const forward=new THREE.Vector3();camera.getWorldDirection(forward);forward.y=0;
+ if(forward.lengthSq()>.01){forward.normalize();hero.g.rotation.y=Math.atan2(-forward.x,-forward.z)}
+ toast("CAMERA CENTERED")
+}
 function interact(){
  if(!running||paused||dead)return;
  let best=null,d=4.5;scene.traverse(o=>{if(o.userData?.action){const x=dist(hero.g,o);if(x<d){d=x;best=o}}});if(best)best.userData.action();else toast("Nothing to interact with here")
@@ -163,13 +176,13 @@ function loop(){
 }
 
 function start(){
- running=true;paused=false;dead=false;won=false;relic=false;shrineUsed=false;locked=null;hero.hp=hero.maxHp;hero.g.position.set(0,0,18);enemies.forEach(e=>scene.remove(e.g));enemies=[];boss=null;$("boss").classList.add("hidden");createEnemyCamp();$("start").classList.add("hidden");$("lose").classList.add("hidden");$("win").classList.add("hidden");toast("EXPEDITION STARTED")
+ running=true;paused=false;dead=false;won=false;relic=false;shrineUsed=false;locked=null;$("lock").classList.remove("locked");hero.hp=hero.maxHp;hero.g.position.set(0,0,18);enemies.forEach(e=>scene.remove(e.g));enemies=[];boss=null;$("boss").classList.add("hidden");createEnemyCamp();$("start").classList.add("hidden");$("lose").classList.add("hidden");$("win").classList.add("hidden");toast("EXPEDITION STARTED")
 }
 function pause(){if(!running||dead||won)return;paused=!paused;$("pauseScreen").classList.toggle("hidden",!paused)}
 function bind(){
  $("startBtn").onclick=start;$("retry").onclick=start;$("again").onclick=start;$("pause").onclick=pause;$("resume").onclick=pause;$("restart").onclick=start;$("fullscreen").onclick=async()=>{try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen()}catch{}};
- $("light").onpointerdown=e=>{e.preventDefault();lightAttack()};$("heavy").onpointerdown=e=>{e.preventDefault();heavyAttack()};$("dash").onpointerdown=e=>{e.preventDefault();dash()};$("interact").onpointerdown=e=>{e.preventDefault();interact()};
- addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true;if(e.key===" ")dash();if(e.key.toLowerCase()==="j"||e.key==="Enter")lightAttack();if(e.key.toLowerCase()==="k")heavyAttack();if(e.key.toLowerCase()==="e")interact();if(e.key.toLowerCase()==="f"){locked=locked?null:nearestEnemy();if(locked)toast("LOCKED ON")};if(e.key==="Escape")pause()});addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
+ $("light").onpointerdown=e=>{e.preventDefault();lightAttack()};$("heavy").onpointerdown=e=>{e.preventDefault();heavyAttack()};$("dash").onpointerdown=e=>{e.preventDefault();dash()};$("interact").onpointerdown=e=>{e.preventDefault();interact()};$("lock").onpointerdown=e=>{e.preventDefault();toggleLock()};$("center").onpointerdown=e=>{e.preventDefault();centerCamera()};
+ addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true;if(e.key===" ")dash();if(e.key.toLowerCase()==="j"||e.key==="Enter")lightAttack();if(e.key.toLowerCase()==="k")heavyAttack();if(e.key.toLowerCase()==="e")interact();if(e.key.toLowerCase()==="f")toggleLock();if(e.key==="Escape")pause()});addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
  renderer.domElement.addEventListener("pointerdown",e=>{if(e.pointerType==="mouse")lightAttack()});
  const z=$("stick-zone"),s=$("stick");let pid=null;
  z.onpointerdown=e=>{pid=e.pointerId;stick.active=true;z.setPointerCapture(pid);joy(e)};z.onpointermove=e=>{if(e.pointerId===pid)joy(e)};z.onpointerup=release;z.onpointercancel=release;
