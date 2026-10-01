@@ -25,6 +25,7 @@ let enemies=[],shots=[],fx=[],keys={},stick={x:0,y:0,active:false};
 let running=false,paused=false,dead=false,won=false;
 let stamina=100,combo=0,comboTimer=0,attackCD=0,heavyCD=0,dashCD=0,invuln=0;
 let relic=false,shrineUsed=false,boss=null,interactTarget=null,relicObject=null,chests=[];
+let cameraYaw=0;
 const defaultState={level:1,shards:0,relics:0};
 let state={...defaultState};
 try{
@@ -39,7 +40,7 @@ function material(c,r=.8,m=0){return new THREE.MeshStandardMaterial({color:c,rou
 function add(g){scene.add(g);return g}
 function mesh(geo,mat,x,y,z){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);return m}
 function dist(a,b){return a.position.distanceTo(b.position)}
-function toast(t){$("prompt").textContent=t;clearTimeout(toast.t);toast.t=setTimeout(()=>{$("prompt").textContent=""},1800)}
+function toast(t){$("prompt").textContent=t;clearTimeout(toast.t);toast.t=setTimeout(()=>$("prompt").textContent="",1800)}
 function burst(p,color,n=8,power=4){for(let i=0;i<n;i++){const m=mesh(new THREE.SphereGeometry(.045+Math.random()*.07,5,5),new THREE.MeshBasicMaterial({color,transparent:true}));m.position.copy(p);fx.push({m,life:.35+Math.random()*.35,v:new THREE.Vector3((Math.random()-.5)*power,Math.random()*power,(Math.random()-.5)*power)})}}
 
 function init(){
@@ -62,7 +63,7 @@ function init(){
 
 function buildIsland(){
  const ground=mesh(new THREE.CylinderGeometry(55,55,.6,64),material(0x405c4e,.98),0,-.3,0);ground.receiveShadow=true;
- for(let i=0;i<45;i++){const a=Math.random()*Math.PI*2,r=8+Math.random()*44,x=Math.cos(a)*r,z=Math.sin(a)*r; if(Math.hypot(x,z)<12)continue; makeTree(x,z)}
+ for(let i=0;i<45;i++){const a=Math.random()*Math.PI*2,r=8+Math.random()*44,x=Math.cos(a)*r,z=Math.sin(a)*r;if(Math.hypot(x,z)<12)continue;makeTree(x,z)}
  for(let i=0;i<28;i++){const x=(Math.random()-.5)*90,z=(Math.random()-.5)*90;if(Math.hypot(x,z)<15)continue;const rock=mesh(new THREE.DodecahedronGeometry(.4+Math.random()*1.1,1),material(0x53635d),x,.4,z);rock.scale.y=.5+Math.random();rock.rotation.set(Math.random(),Math.random(),Math.random())}
  const water=mesh(new THREE.CylinderGeometry(76,76,.12,64),new THREE.MeshStandardMaterial({color:0x244b57,roughness:.2,metalness:.1,transparent:true,opacity:.78}),0,-1.1,0);
  const path=mesh(new THREE.RingGeometry(7,9,48),material(0x706957),0,.01,0);path.rotation.x=-Math.PI/2;
@@ -163,7 +164,8 @@ function dash(){
 function move(dt){
  let x=stick.x,z=stick.y;if(keys.a||keys.arrowleft)x--;if(keys.d||keys.arrowright)x++;if(keys.w||keys.arrowup)z--;if(keys.s||keys.arrowdown)z++;
  const d=new THREE.Vector3(x,0,z);if(d.lengthSq()>1)d.normalize();
- hero.g.position.addScaledVector(d,6*dt);if(d.lengthSq()>.02)hero.g.rotation.y=THREE.MathUtils.lerp(hero.g.rotation.y,Math.atan2(d.x,d.z),.18);
+ hero.g.position.addScaledVector(d,6*dt);
+ if(d.lengthSq()>.02)hero.g.rotation.y=THREE.MathUtils.lerp(hero.g.rotation.y,Math.atan2(d.x,d.z),.18);
  hero.g.position.x=THREE.MathUtils.clamp(hero.g.position.x,-48,48);hero.g.position.z=THREE.MathUtils.clamp(hero.g.position.z,-48,48);
  stamina=Math.min(100,stamina+18*dt);attackCD=Math.max(0,attackCD-dt);heavyCD=Math.max(0,heavyCD-dt);dashCD=Math.max(0,dashCD-dt);invuln=Math.max(0,invuln-dt);comboTimer=Math.max(0,comboTimer-dt)
 }
@@ -177,13 +179,11 @@ function toggleLock(){
  if(!running||paused||dead)return;
  if(locked){locked=null;$("lock").classList.remove("locked");toast("LOCK-ON RELEASED");return}
  locked=nearestEnemy();
- if(locked){$("lock").classList.add("locked");toast("LOCKED ON")}
- else toast("NO TARGET IN RANGE")
+ if(locked){$("lock").classList.add("locked");toast("LOCKED ON")}else toast("NO TARGET IN RANGE")
 }
 function centerCamera(){
  if(!hero)return;
- const forward=new THREE.Vector3();camera.getWorldDirection(forward);forward.y=0;
- if(forward.lengthSq()>.01){forward.normalize();hero.g.rotation.y=Math.atan2(-forward.x,-forward.z)}
+ cameraYaw=hero.g.rotation.y;
  toast("CAMERA CENTERED")
 }
 function interact(){
@@ -201,7 +201,10 @@ function updateUI(){
 function die(){dead=true;paused=true;$("lose").classList.remove("hidden")}
 function updateFX(dt){for(const f of fx.slice()){f.life-=dt;f.m.position.addScaledVector(f.v,dt);f.v.y-=8*dt;f.m.scale.multiplyScalar(.94);if(f.life<=0){scene.remove(f.m);fx=fx.filter(x=>x!==f)}}}
 function updateCamera(dt){
- const target=hero.g.position.clone().add(new THREE.Vector3(0,1,0));const off=new THREE.Vector3(0,8,10).applyAxisAngle(new THREE.Vector3(0,1,0),hero.g.rotation.y);camera.position.lerp(target.clone().add(off),1-Math.pow(.001,dt));camera.lookAt(target)
+ const target=hero.g.position.clone().add(new THREE.Vector3(0,1,0));
+ const off=new THREE.Vector3(0,8,10).applyAxisAngle(new THREE.Vector3(0,1,0),cameraYaw);
+ camera.position.lerp(target.clone().add(off),1-Math.pow(.001,dt));
+ camera.lookAt(target)
 }
 function loop(){
  const dt=Math.min(.033,clock.getDelta());if(running&&!paused&&!dead&&!won){move(dt);enemyAI(dt);bossAI(dt);updateFX(dt);updateCamera(dt);updateUI()}
@@ -209,7 +212,9 @@ function loop(){
 }
 
 function start(){
- running=true;paused=false;dead=false;won=false;relic=false;shrineUsed=false;locked=null;$("lock").classList.remove("locked");hero.hp=hero.maxHp;chests.forEach(c=>{c.userData.open=false;const lid=c.children[1];lid.rotation.set(0,0,0)});if(relicObject)relicObject.visible=true;hero.g.position.set(0,0,18);enemies.forEach(e=>scene.remove(e.g));enemies=[];boss=null;$("boss").classList.add("hidden");createEnemyCamp();$("start").classList.add("hidden");$("lose").classList.add("hidden");$("win").classList.add("hidden");toast("EXPEDITION STARTED")
+ running=true;paused=false;dead=false;won=false;relic=false;shrineUsed=false;locked=null;$("lock").classList.remove("locked");hero.hp=hero.maxHp;cameraYaw=hero.g.rotation.y;
+ chests.forEach(c=>{c.userData.open=false;const lid=c.children[1];lid.rotation.set(0,0,0)});
+ if(relicObject)relicObject.visible=true;hero.g.position.set(0,0,18);enemies.forEach(e=>scene.remove(e.g));enemies=[];boss=null;$("boss").classList.add("hidden");createEnemyCamp();$("start").classList.add("hidden");$("lose").classList.add("hidden");$("win").classList.add("hidden");toast("EXPEDITION STARTED")
 }
 function pause(){if(!running||dead||won)return;paused=!paused;$("pauseScreen").classList.toggle("hidden",!paused)}
 function bind(){
