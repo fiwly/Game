@@ -26,7 +26,7 @@ function init(){
  $("game").appendChild(renderer.domElement);
  const hemi=new THREE.HemisphereLight(0xd9fff1,0x304038,2.2);add(hemi);
  const sun=new THREE.DirectionalLight(0xfff1c5,3);sun.position.set(-35,60,25);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-60;sun.shadow.camera.right=60;sun.shadow.camera.top=60;sun.shadow.camera.bottom=-60;add(sun);
- buildIsland();createHero();createShrine();createChests();createEnemyCamp();bind();save();$("loading").classList.add("hidden");clock=new THREE.Clock();requestAnimationFrame(loop)
+ buildIsland();createHero();createShrine();createRelic();createChests();createEnemyCamp();bind();save();$("loading").classList.add("hidden");clock=new THREE.Clock();requestAnimationFrame(loop)
 }
 
 function buildIsland(){
@@ -60,6 +60,13 @@ function createShrine(){
  const pillar=new THREE.Mesh(new THREE.CylinderGeometry(.6,.85,4,8),material(0x7b806e));pillar.position.y=2.3;pillar.castShadow=true;g.add(pillar);
  const orb=new THREE.Mesh(new THREE.IcosahedronGeometry(.75,2),new THREE.MeshStandardMaterial({color:0xd6bd63,emissive:0x6f5c1b,emissiveIntensity:1.8,roughness:.25,metalness:.5}));orb.position.y=4.7;orb.castShadow=true;g.add(orb);
  g.userData.action=()=>{if(!shrineUsed){shrineUsed=true;state.shards+=30;save();$("objective").textContent="Find the relic in the western ruins";$("objectiveText").textContent="The shrine revealed a path to the old ruins.";burst(g.position,0xd6bd63,25,6);toast("THE SHRINE AWAKENS")}else toast("The shrine is quiet.")};
+}
+function createRelic(){
+ const g=new THREE.Group();g.position.set(28,0,-30);g.userData.type="relic";add(g);
+ const base=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.5,.45,8),material(0x5d625b));base.position.y=.25;base.castShadow=true;g.add(base);
+ const crystal=new THREE.Mesh(new THREE.OctahedronGeometry(.7,1),new THREE.MeshStandardMaterial({color:0xb7ffe9,emissive:0x3a8d79,emissiveIntensity:2,roughness:.2,metalness:.35}));crystal.position.y=1.25;crystal.castShadow=true;g.add(crystal);
+ const ring=new THREE.Mesh(new THREE.TorusGeometry(1,.035,8,32),new THREE.MeshBasicMaterial({color:0xd6bd63}));ring.rotation.x=Math.PI/2;ring.position.y=.8;g.add(ring);
+ g.userData.action=()=>{if(relic){toast("The relic is already yours");return}if(!shrineUsed){toast("The relic is sealed. Awaken the shrine first.");return}relic=true;state.relics++;state.shards+=50;save();$("objective").textContent="Clear the guardians";$("objectiveText").textContent="Defeat every guardian on the island. Then face the Warden.";burst(g.position,0xb7ffe9,28,6);toast("ANCIENT RELIC RECOVERED")};
 }
 function createChests(){
  for(const p of [[-27,-22],[34,-17],[-30,28]]){
@@ -107,7 +114,7 @@ function heavyAttack(){
 }
 function hit(e,dmg){
  e.hp-=dmg;burst(e.g.position,0xe6d47a,7,3);e.core.scale.setScalar(1.2);setTimeout(()=>{if(e.core)e.core.scale.setScalar(1)},100);
- if(e.hp<=0){e.dead=true;state.shards+=10;save();burst(e.g.position,0xb7ffe9,18,5);scene.remove(e.g);enemies=enemies.filter(x=>x!==e);toast("+10 SHARDS");if(enemies.length===0&&!boss)spawnBoss()}
+ if(e.hp<=0){e.dead=true;state.shards+=10;save();burst(e.g.position,0xb7ffe9,18,5);scene.remove(e.g);enemies=enemies.filter(x=>x!==e);toast("+10 SHARDS");if(enemies.length===0&&!boss&&relic)spawnBoss()}
 }
 function hitBoss(dmg){
  boss.hp-=dmg;burst(boss.g.position,0xff706d,12,4);updateBoss();
@@ -139,7 +146,7 @@ function interact(){
 }
 function updateObjective(){
  if(!shrineUsed){$("objective").textContent="Find the ancient shrine";$("objectiveText").textContent="Walk north and investigate the glowing shrine."}
- else if(!relic){$("objective").textContent="Recover the lost relic";$("objectiveText").textContent="Search the western ruins for a relic."}
+ else if(!relic){$("objective").textContent="Recover the lost relic";$("objectiveText").textContent="Search the old ruins for the glowing relic."}
  else {$("objective").textContent="Defeat the Stone Warden";$("objectiveText").textContent="The guardian protects the island's exit."}
 }
 function updateUI(){
@@ -156,7 +163,7 @@ function loop(){
 }
 
 function start(){
- running=true;paused=false;dead=false;won=false;relic=false;shrineUsed=false;hero.hp=hero.maxHp;hero.g.position.set(0,0,18);enemies.forEach(e=>scene.remove(e.g));enemies=[];boss=null;$("boss").classList.add("hidden");createEnemyCamp();$("start").classList.add("hidden");$("lose").classList.add("hidden");$("win").classList.add("hidden");toast("EXPEDITION STARTED")
+ running=true;paused=false;dead=false;won=false;relic=false;shrineUsed=false;locked=null;hero.hp=hero.maxHp;hero.g.position.set(0,0,18);enemies.forEach(e=>scene.remove(e.g));enemies=[];boss=null;$("boss").classList.add("hidden");createEnemyCamp();$("start").classList.add("hidden");$("lose").classList.add("hidden");$("win").classList.add("hidden");toast("EXPEDITION STARTED")
 }
 function pause(){if(!running||dead||won)return;paused=!paused;$("pauseScreen").classList.toggle("hidden",!paused)}
 function bind(){
