@@ -10,3 +10,40 @@
 @media(max-width:800px){.cinema{height:3vh}.hud-top{top:3vh;padding:10px 12px}.brand span{font-size:13px}.player-hud{top:78px;left:12px}.objective{top:78px;right:12px;width:190px}.bars{width:140px}.objective span{font-size:8px}#mobile{display:flex}#desktop-help{display:none}.hero-copy{margin:0}.hero-copy h1{font-size:78px}.hero-copy p{font-size:11px}.resources span{padding:7px 8px}.resources span:nth-child(2){display:none}}
 @media(max-width:520px){.objective{display:none}.bars{width:145px}#boss{width:82vw}.actions{gap:5px}.actions button{width:55px;height:55px}.actions button:first-child{width:67px;height:67px}.actions button:nth-child(4){width:45px;height:45px}.actions button:nth-child(5),.actions button:nth-child(6){width:43px;height:43px}.chips{display:none}}
 @media(orientation:portrait) and (max-width:800px){.screen:after{content:"ROTATE TO LANDSCAPE";position:absolute;top:12px;right:14px;color:#708287;font-size:7px;letter-spacing:2px}}
+/* Touch-device controls: show the full game controller even when iPad requests desktop layout */
+@media (pointer: coarse) {
+  #mobile{
+    display:flex !important;
+    bottom:max(18px,env(safe-area-inset-bottom));
+    padding:0 24px;
+    z-index:150 !important;
+  }
+  #desktop-help{display:none !important}
+  #stick-zone{
+    width:128px;
+    height:128px;
+  }
+  #stick{
+    width:54px;
+    height:54px;
+    left:37px;
+    top:37px;
+  }
+  .actions{
+    gap:10px;
+  }
+  .actions button{
+    width:66px;
+    height:66px;
+  }
+  .actions button:first-child{
+    width:78px;
+    height:78px;
+  }
+  .actions button:nth-child(4),
+  .actions button:nth-child(5),
+  .actions button:nth-child(6){
+    width:54px;
+    height:54px;
+  }
+}
