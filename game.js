@@ -7,10 +7,16 @@ let enemies=[],shots=[],fx=[],keys={},stick={x:0,y:0,active:false};
 let running=false,paused=false,dead=false,won=false;
 let stamina=100,combo=0,comboTimer=0,attackCD=0,heavyCD=0,dashCD=0,invuln=0;
 let relic=false,shrineUsed=false,boss=null,interactTarget=null,relicObject=null,chests=[];
-const state=JSON.parse(localStorage.getItem(saveKey)||'{"level":1,"shards":0,"relics":0}');
+const defaultState={level:1,shards:0,relics:0};
+let state={...defaultState};
+try{
+ const raw=localStorage.getItem(saveKey);
+ if(raw){const parsed=JSON.parse(raw);if(parsed&&typeof parsed==="object")state={...defaultState,...parsed};}
+}catch(e){console.warn("Save data unavailable:",e);}
+function safeSaveData(){try{localStorage.setItem(saveKey,JSON.stringify(state));}catch(e){console.warn("Save unavailable:",e);}}
 const world={size:110};
 
-function save(){localStorage.setItem(saveKey,JSON.stringify(state));$("shards").textContent=state.shards;$("level").textContent=state.level}
+function save(){safeSaveData();$("shards").textContent=state.shards;$("level").textContent=state.level}
 function material(c,r=.8,m=0){return new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m})}
 function add(g){scene.add(g);return g}
 function mesh(geo,mat,x,y,z){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);return m}
@@ -19,6 +25,7 @@ function toast(t){$("prompt").textContent=t;clearTimeout(toast.t);toast.t=setTim
 function burst(p,color,n=8,power=4){for(let i=0;i<n;i++){const m=mesh(new THREE.SphereGeometry(.045+Math.random()*.07,5,5),new THREE.MeshBasicMaterial({color,transparent:true}));m.position.copy(p);fx.push({m,life:.35+Math.random()*.35,v:new THREE.Vector3((Math.random()-.5)*power,Math.random()*power,(Math.random()-.5)*power)})}}
 
 function init(){
+ try{
  scene=new THREE.Scene();scene.background=new THREE.Color(0x8ca69b);scene.fog=new THREE.Fog(0x8ca69b,48,125);
  camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,180);
  renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"});
@@ -193,4 +200,6 @@ function bind(){
  addEventListener("resize",()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)})
 }
 
+window.addEventListener("error",e=>console.error("SKYBOUND error:",e.error||e.message));
+window.addEventListener("unhandledrejection",e=>console.error("SKYBOUND promise error:",e.reason));
 init();
