@@ -61,11 +61,11 @@ function init(){
 }
 
 function buildIsland(){
- const ground=mesh(new THREE.CircleGeometry(55,64),material(0x405c4e,.98),0,-.3,0);ground.receiveShadow=true;
+ const ground=mesh(new THREE.CircleGeometry(55,64),material(0x405c4e,.98),0,-.3,0);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;
  for(let i=0;i<45;i++){const a=Math.random()*Math.PI*2,r=8+Math.random()*44,x=Math.cos(a)*r,z=Math.sin(a)*r; if(Math.hypot(x,z)<12)continue; makeTree(x,z)}
  for(let i=0;i<28;i++){const x=(Math.random()-.5)*90,z=(Math.random()-.5)*90;if(Math.hypot(x,z)<15)continue;const rock=mesh(new THREE.DodecahedronGeometry(.4+Math.random()*1.1,1),material(0x53635d),x,.4,z);rock.scale.y=.5+Math.random();rock.rotation.set(Math.random(),Math.random(),Math.random())}
- const water=mesh(new THREE.CircleGeometry(76,64),new THREE.MeshStandardMaterial({color:0x244b57,roughness:.2,metalness:.1,transparent:true,opacity:.78}),0,-1.1,0);
- const path=mesh(new THREE.RingGeometry(7,9,48),material(0x706957),0,.01,0);
+ const water=mesh(new THREE.CircleGeometry(76,64),new THREE.MeshStandardMaterial({color:0x244b57,roughness:.2,metalness:.1,transparent:true,opacity:.78}),0,-1.1,0);water.rotation.x=-Math.PI/2;
+ const path=mesh(new THREE.RingGeometry(7,9,48),material(0x706957),0,.01,0);path.rotation.x=-Math.PI/2;
  for(let i=0;i<12;i++){const a=i*Math.PI*2/12;const x=Math.cos(a)*10,z=Math.sin(a)*10;mesh(new THREE.CylinderGeometry(.5,.7,1.4,7),material(0x655e50),x,.7,z)}
  const ruins=new THREE.Group();ruins.position.set(28,0,-23);add(ruins);
  for(let i=0;i<8;i++){const p=new THREE.Mesh(new THREE.BoxGeometry(1.3,3+Math.random()*3,1.3),material(0x5e625e));p.position.set((Math.random()-.5)*10,1.5,(Math.random()-.5)*8);p.rotation.y=Math.random();p.castShadow=true;ruins.add(p)}
