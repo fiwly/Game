@@ -10,47 +10,30 @@
 <div id="game-shell">
   <div id="game"></div>
   <div class="cinema top"></div><div class="cinema bottom"></div>
-
   <header class="hud-top">
     <div class="brand"><span>SKYBOUND</span><small>RELIC OF THE LOST ISLE</small></div>
     <div class="resources"><span>◆ <b id="shards">0</b></span><span>LV <b id="level">1</b></span><button id="fullscreen">⛶</button><button id="pause">Ⅱ</button></div>
   </header>
-
-  <div class="player-hud">
-    <div class="portrait">S</div>
-    <div class="bars"><b>WANDERER</b><div class="hp"><i id="hp"></i></div><div class="stamina"><i id="stamina"></i></div></div>
-  </div>
+  <div class="player-hud"><div class="portrait">S</div><div class="bars"><b>WANDERER</b><div class="hp"><i id="hp"></i></div><div class="stamina"><i id="stamina"></i></div></div></div>
   <div class="objective"><small>OBJECTIVE</small><b id="objective">Find the ancient shrine</b><span id="objectiveText">Explore the island and recover the first relic.</span></div>
   <div id="prompt"></div>
   <div id="boss" class="hidden"><div><b id="bossName">STONE WARDEN</b><span id="bossText"></span></div><div class="boss-track"><i id="bossHp"></i></div></div>
-
   <div id="mobile">
     <div id="stick-zone"><div id="stick"></div></div>
     <div class="actions">
-      <button id="light">⚔<small>LIGHT</small></button>
-      <button id="dash">➤<small>DASH</small></button>
-      <button id="heavy">✦<small>HEAVY</small></button>
+      <button id="light">⚔<small>LIGHT</small></button><button id="dash">➤<small>DASH</small></button><button id="heavy">✦<small>HEAVY</small></button>
       <button id="interact">◎<small>USE</small></button><button id="lock">⌖<small>LOCK</small></button><button id="center">◉<small>CAM</small></button>
     </div>
   </div>
   <div id="desktop-help">WASD MOVE · MOUSE / J LIGHT · K HEAVY · SPACE DASH · E INTERACT · F LOCK-ON</div>
-
   <div id="start" class="screen">
-    <div class="hero-copy">
-      <div class="kicker">A 3D ADVENTURE FOR THE BROWSER</div>
-      <h1>SKY<br><em>BOUND</em></h1>
-      <p>A forgotten island. A sleeping guardian. One relic that can change everything.</p>
-      <button id="startBtn" class="primary">BEGIN EXPEDITION</button>
-      <div class="chips"><span>EXPLORE</span><span>COMBAT</span><span>DISCOVER</span></div>
-    </div>
+    <div class="hero-copy"><div class="kicker">A 3D ADVENTURE FOR THE BROWSER</div><h1>SKY<br><em>BOUND</em></h1><p>A forgotten island. A sleeping guardian. One relic that can change everything.</p><button id="startBtn" class="primary">BEGIN EXPEDITION</button><div class="chips"><span>EXPLORE</span><span>COMBAT</span><span>DISCOVER</span></div></div>
   </div>
-
   <div id="pauseScreen" class="screen hidden"><div class="modal"><small>EXPEDITION PAUSED</small><h2>THE ISLAND WAITS</h2><button id="resume" class="primary">CONTINUE</button><button id="restart">RESTART EXPEDITION</button></div></div>
   <div id="win" class="screen hidden"><div class="modal"><small>RELIC RECOVERED</small><h2>THE SKY REMEMBERS</h2><p>You found the ancient relic and awakened the island.</p><button id="again" class="primary">EXPLORE AGAIN</button></div></div>
   <div id="lose" class="screen hidden"><div class="modal"><small>EXPEDITION FAILED</small><h2>THE ISLAND WINS</h2><p>Your expedition ends here.</p><button id="retry" class="primary">TRY AGAIN</button></div></div>
-
   <div id="loading"><div class="spinner"></div><b>GENERATING THE LOST ISLE</b></div>
 </div>
-<script type="module" src="game.js?v=20261002-6"></script>
+<script type="module" src="game.js?v=20261002-7"></script>
 </body>
 </html>
