@@ -1,4 +1,22 @@
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+let THREE=null;
+const THREE_SOURCES=[
+ "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+ "https://unpkg.com/three@0.180.0/build/three.module.js"
+];
+async function loadThree(){
+ let lastError=null;
+ for(const src of THREE_SOURCES){
+  try{
+   THREE=await import(src);
+   return true;
+  }catch(error){
+   lastError=error;
+   console.warn("Three.js load failed:",src,error);
+  }
+ }
+ console.error("Unable to load Three.js:",lastError);
+ return false;
+}
 
 const $=id=>document.getElementById(id);
 const saveKey="skybound_save_v1";
@@ -208,4 +226,17 @@ function bind(){
 
 window.addEventListener("error",e=>console.error("SKYBOUND error:",e.error||e.message));
 window.addEventListener("unhandledrejection",e=>console.error("SKYBOUND promise error:",e.reason));
-init();
+loadThree().then(ok=>{
+ if(ok) init();
+ else{
+  $("loading")?.classList.add("hidden");
+  const btn=$("startBtn");
+  if(btn){
+   btn.disabled=false;
+   btn.textContent="RELOAD GAME";
+   btn.onclick=()=>location.reload();
+  }
+  const p=$("prompt");
+  if(p) p.textContent="3D engine could not load. Tap RELOAD GAME.";
+ }
+});
