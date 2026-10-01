@@ -34,6 +34,12 @@ function init(){
  const hemi=new THREE.HemisphereLight(0xd9fff1,0x304038,2.2);add(hemi);
  const sun=new THREE.DirectionalLight(0xfff1c5,3);sun.position.set(-35,60,25);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-60;sun.shadow.camera.right=60;sun.shadow.camera.top=60;sun.shadow.camera.bottom=-60;add(sun);
  buildIsland();createHero();createShrine();createRelic();createChests();createEnemyCamp();bind();save();$("loading").classList.add("hidden");clock=new THREE.Clock();requestAnimationFrame(loop)
+ }catch(error){
+   console.error("SKYBOUND startup error:",error);
+   $("loading")?.classList.add("hidden");
+   const btn=$("startBtn");
+   if(btn){btn.disabled=false;btn.textContent="RELOAD GAME";btn.onclick=()=>location.reload();}
+ }
 }
 
 function buildIsland(){
