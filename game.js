@@ -203,8 +203,11 @@ function updateFX(dt){for(const f of fx.slice()){f.life-=dt;f.m.position.addScal
 function updateCamera(dt){
  const target=hero.g.position.clone().add(new THREE.Vector3(0,1,0));
  const off=new THREE.Vector3(0,8,10).applyAxisAngle(new THREE.Vector3(0,1,0),cameraYaw);
- camera.position.lerp(target.clone().add(off),1-Math.pow(.001,dt));
- camera.lookAt(target)
+ const desired=target.clone().add(off);
+ camera.position.lerp(desired,1-Math.pow(.001,dt));
+ // Camera yaw is independent from hero/joystick movement.
+ // Use a fixed relative look target so dragging the movement stick never swivels the view.
+ camera.lookAt(camera.position.clone().sub(off).add(new THREE.Vector3(0,1,0)));
 }
 function loop(){
  const dt=Math.min(.033,clock.getDelta());if(running&&!paused&&!dead&&!won){move(dt);enemyAI(dt);bossAI(dt);updateFX(dt);updateCamera(dt);updateUI()}
