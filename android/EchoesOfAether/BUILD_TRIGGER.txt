@@ -1,1 +1,1 @@
-Trigger Android CI build after Kotlin fixes.
+Trigger build after Kotlin literal normalization.
