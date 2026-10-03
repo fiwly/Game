@@ -1,0 +1,8 @@
+package com.aether.echoes
+import kotlin.math.*
+enum class EState{PATROL,CHASE,ATTACK,RECOVER,HIT,DEAD}
+class Enemy(val id:Int,sx:Float,sy:Float):Body(sx,sy-40,34f,40f){var hp=30;val armor=2;var state=EState.PATROL;var timer=0f;var flash=0f;var deadT=0f;var dir=1;var lastSwing=-1;private var stuck=0f;private var lastX=sx
+ private fun ahead(w:World)=w.solid(floor((x+w/2+dir*(this.w/2+6))/T).toInt(),floor((y+h+4)/T).toInt())
+ fun hurt(g:Game,dmg:Int,from:Int){hp-=dmg;flash=.1f;if(hp<=0){state=EState.DEAD;deadT=.3f;vx=0f}else{state=EState.HIT;timer=.25f;vx=from*220f;vy=-200f}}
+ fun update(g:Game,dt:Float){val p=g.player;val dx=p.x+p.w/2-x-w/2;val dy=p.y+p.h/2-y-h/2;timer-=dt;flash-=dt;when(state){EState.PATROL->{vx=dir*70f;if(hitWall!=0||!ahead(g.world))dir=-dir;if(abs(dx)<220&&!p.dead)state=EState.CHASE};EState.CHASE->{dir=if(dx>0)1 else -1;vx=if(!ahead(g.world)||hitWall!=0)0f else dir*130f;if(abs(dx)<44&&abs(dy)<60){state=EState.ATTACK;timer=.45f;vx=0f}else if(abs(dx)>340||p.dead)state=EState.PATROL;if(abs(x-lastX)<.5)stuck+=dt else{stuck=0f;lastX=x};if(stuck>1.2){state=EState.PATROL;dir=-dir;stuck=0f}};EState.ATTACK->{vx=0f;if(timer<=.05){if(abs(dx)<58&&abs(dy)<60)p.hurt(g,12,x)};if(timer<=0){state=EState.RECOVER;timer=.5f}};EState.RECOVER->{vx=0f;if(timer<=0)state=EState.CHASE};EState.HIT->{vx=approach(vx,0f,600*dt);if(timer<=0)state=EState.CHASE};EState.DEAD->{vx=0f;deadT-=dt}};vy=min(vy+2200*dt,900f);move(g.world,dt)}
+}
