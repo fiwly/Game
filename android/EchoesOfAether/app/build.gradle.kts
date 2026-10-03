@@ -4,7 +4,7 @@ val ksFile = rootProject.file("keystore.properties")
 val ks = Properties().apply { if (ksFile.exists()) ksFile.inputStream().use { load(it) } }
 android {
  namespace = "com.aether.echoes"; compileSdk = 34
- defaultConfig { applicationId = "com.aether.echoes"; minSdk = 24; targetSdk = 34; versionCode = 2; versionName = "0.2.0-slice" }
+ defaultConfig { applicationId = "com.aether.echoes"; minSdk = 24; targetSdk = 34; versionCode = 3; versionName = "0.3.0-full-systems" }
  signingConfigs { if (ks.containsKey("storeFile")) create("release") { storeFile = rootProject.file(ks.getProperty("storeFile")); storePassword = ks.getProperty("storePassword"); keyAlias = ks.getProperty("keyAlias"); keyPassword = ks.getProperty("keyPassword") } }
  buildTypes { release { isMinifyEnabled = true; isShrinkResources = true; proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt")); signingConfigs.findByName("release")?.let { signingConfig = it } } }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
